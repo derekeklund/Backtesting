@@ -15,7 +15,14 @@ def main():
 
     t1 = pd.Timestamp.today()
 
+    # Parameters
     ticker = 'AAPL'
+    buy_threshold = -0.01 # Percentage change in price to trigger a buy signal
+    sell_threshold = 0.03 # Percentage change in price to trigger a sell signal
+    buy_percentage = 0.2 # Percentage of cash to buy with each buy signal
+    sell_percentage = 0.2 # Percentage of shares to sell with each sell signal
+
+
     today = pd.Timestamp.today()
 
     # Get data from Yahoo Finance
@@ -45,8 +52,8 @@ def main():
     # data['Account Value'] = 0.0
 
     # Buy/Sell flags
-    data.loc[data['Daily Change'] < -0.02, 'Flag'] = 1
-    data.loc[data['Daily Change'] > 0.02, 'Flag'] = -1
+    data.loc[data['Daily Change'] < buy_threshold, 'Flag'] = 1
+    data.loc[data['Daily Change'] > sell_threshold, 'Flag'] = -1
 
     for i in range(0, len(data)):
 
@@ -64,7 +71,7 @@ def main():
                 data.loc[i, 'Cash'] = data['Cash'].iloc[i-1]
 
                 # Calculate the number of shares to buy
-                data.loc[i, 'Change in Shares'] = data['Cash'].iloc[i] * 0.1 / data['Close'].iloc[i]
+                data.loc[i, 'Change in Shares'] = data['Cash'].iloc[i] * buy_percentage / data['Close'].iloc[i]
 
                 # Update the total number of shares
                 data.loc[i, 'Total Shares'] = data['Total Shares'].iloc[i-1] + data['Change in Shares'].iloc[i]
@@ -86,7 +93,7 @@ def main():
             elif data.loc[i, 'Flag'] == -1:
 
                 # Calculate the number of shares to sell
-                data.loc[i, 'Change in Shares'] = data.loc[i-1, 'Total Shares'] * + 0.1
+                data.loc[i, 'Change in Shares'] = data.loc[i-1, 'Total Shares'] * + sell_percentage
 
                 # Update the total number of shares
                 data.loc[i, 'Total Shares'] = data.loc[i-1, 'Total Shares'] - data.loc[i, 'Change in Shares']
@@ -126,9 +133,16 @@ def main():
     plt.figure(figsize=(10,6))
     plt.plot(data['Account Value'])
     plt.plot(data['Buy & Hold'])
+
+    # Plot buy signals
+    plt.plot(data[data['Flag'] == 1].index, data['Account Value'][data['Flag'] == 1], '^', markersize=10, color='g')
+
+    # Plot sell signals
+    plt.plot(data[data['Flag'] == -1].index, data['Account Value'][data['Flag'] == -1], 'v', markersize=10, color='r')
+
     plt.xlabel('Time')
     plt.ylabel('Value')
-    plt.legend(['Strategy', 'Buy & Hold'])
+    plt.legend(['Strategy', 'Buy & Hold', 'Buy Signal', 'Sell Signal'])
     plt.title('Strategy vs Buy & Hold')
     plt.show()
 
