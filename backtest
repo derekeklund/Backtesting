@@ -1,0 +1,137 @@
+import pandas as pd
+import numpy as np
+import yfinance as yf
+import matplotlib.pyplot as plt
+import os
+from openpyxl import load_workbook
+from openpyxl.styles import Color, PatternFill
+from openpyxl.formatting.rule import ColorScaleRule
+
+# 1. download a simple CSV with historical data for a security
+# 2. implement a simple scenario where you buy at a certain point and sell at another
+# 3. build on top of that. Don't go crazy with features.. keep it minimal and clean!
+
+def main():
+
+    t1 = pd.Timestamp.today()
+
+    ticker = 'AAPL'
+    today = pd.Timestamp.today()
+
+    # Get data from Yahoo Finance
+    data = yf.download(ticker, start='2024-01-01', end=today)
+
+    # Make it a single-index dataframe
+    data = data.stack()
+
+    # Reset index
+    data.reset_index(inplace=True)
+
+
+    # print(data.head())
+
+    # New column called 'Daily Change'
+    data['Daily Change'] = (data['Close'] / data['Open']) - 1
+
+    # New column called 'Flag' set to 0 (no action)
+    data['Flag'] = 0
+    data['Change in Shares'] = 0.0
+    data['Total Shares'] = 0.0
+    data['Share Value'] = 0.0
+    data['Cash'] = 0.0
+    data['Account Value'] = 0.0
+    data['Buy & Hold'] = 0.0
+    
+    # data['Account Value'] = 0.0
+
+    # Buy/Sell flags
+    data.loc[data['Daily Change'] < -0.02, 'Flag'] = 1
+    data.loc[data['Daily Change'] > 0.02, 'Flag'] = -1
+
+    for i in range(0, len(data)):
+
+        # Set initial cash pile
+        if i == 0:
+           data.loc[i, 'Cash'] = 10000
+           data.loc[i, 'Buy & Hold'] = 10000 * (1 + data.loc[i, 'Daily Change'])
+
+        else:
+
+            # Buy 10% of the total cash pile
+            if data.loc[i, 'Flag'] == 1:
+
+                # Get cash from previous index
+                data.loc[i, 'Cash'] = data['Cash'].iloc[i-1]
+
+                # Calculate the number of shares to buy
+                data.loc[i, 'Change in Shares'] = data['Cash'].iloc[i] * 0.1 / data['Close'].iloc[i]
+
+                # Update the total number of shares
+                data.loc[i, 'Total Shares'] = data['Total Shares'].iloc[i-1] + data['Change in Shares'].iloc[i]
+
+                # Update the cash pile
+                data.loc[i, 'Cash'] = data['Cash'].iloc[i-1] - (data['Change in Shares'].iloc[i] * data['Close'].iloc[i])
+
+
+            # No buy/sell signal
+            elif data.loc[i, 'Flag'] == 0:
+                
+                # Update the total number of shares
+                data.loc[i, 'Total Shares'] = data['Total Shares'].iloc[i-1]
+
+                # Update the cash pile
+                data.loc[i, 'Cash'] = data['Cash'].iloc[i-1]
+
+            # Sell 10% of the total shares owned
+            elif data.loc[i, 'Flag'] == -1:
+
+                # Calculate the number of shares to sell
+                data.loc[i, 'Change in Shares'] = data.loc[i-1, 'Total Shares'] * + 0.1
+
+                # Update the total number of shares
+                data.loc[i, 'Total Shares'] = data.loc[i-1, 'Total Shares'] - data.loc[i, 'Change in Shares']
+
+                # Update the cash pile
+                data.loc[i, 'Cash'] = data.loc[i-1, 'Cash'] + (data.loc[i, 'Change in Shares'] * data.loc[i, 'Open'])
+
+            # Get yesterday's Buy & Hold value
+            data.loc[i, 'Buy & Hold'] = data.loc[i-1, 'Buy & Hold']
+
+            # Update the Buy & Hold value
+            data.loc[i, 'Buy & Hold'] = data.loc[i, 'Buy & Hold'] * (1 + data.loc[i, 'Daily Change'])
+
+    # Calculate the value of the shares owned
+    data['Share Value'] = data['Total Shares'] * data['Close']
+
+    # Calculate the account value
+    data['Account Value'] = data['Cash'] + data['Share Value']
+
+    # END MODIFYING DATAFRAME
+
+    # Save the data to a xlsx file
+    os.chdir('C:\\Users\\derek\\Coding Projects\\Backtesting')
+    data.to_excel(f'{ticker}_backtest.xlsx')
+
+    # Freeze top row
+    wb = load_workbook(f'{ticker}_backtest.xlsx')
+    ws = wb.active
+    ws.freeze_panes = ws['A2']
+    wb.save(f'{ticker}_backtest.xlsx')
+
+    t2 = pd.Timestamp.today()
+
+    print('Time taken:', t2 - t1)
+
+    # Plot the account value
+    plt.figure(figsize=(10,6))
+    plt.plot(data['Account Value'])
+    plt.plot(data['Buy & Hold'])
+    plt.xlabel('Time')
+    plt.ylabel('Value')
+    plt.legend(['Strategy', 'Buy & Hold'])
+    plt.title('Strategy vs Buy & Hold')
+    plt.show()
+
+
+if __name__ == '__main__':
+    main()
