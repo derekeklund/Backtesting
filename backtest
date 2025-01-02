@@ -10,23 +10,25 @@ from openpyxl.formatting.rule import ColorScaleRule
 # 1. download a simple CSV with historical data for a security
 # 2. implement a simple scenario where you buy at a certain point and sell at another
 # 3. build on top of that. Don't go crazy with features.. keep it minimal and clean!
+# *** Not adjusted for splits + dividends, but can be by using the 'Adj Close' column instead of 'Close'
 
 def main():
 
     t1 = pd.Timestamp.today()
 
     # Parameters
-    ticker = 'AAPL'
+    ticker = 'SPY'
     buy_threshold = -0.01 # Percentage change in price to trigger a buy signal
-    sell_threshold = 0.03 # Percentage change in price to trigger a sell signal
+    sell_threshold = 0.1 # Percentage change in price to trigger a sell signal
     buy_percentage = 0.2 # Percentage of cash to buy with each buy signal
     sell_percentage = 0.2 # Percentage of shares to sell with each sell signal
-
+    start_date = '2020-01-01'
+    end_date = pd.Timestamp.today()
 
     today = pd.Timestamp.today()
 
     # Get data from Yahoo Finance
-    data = yf.download(ticker, start='2024-01-01', end=today)
+    data = yf.download(ticker, start=start_date, end=end_date)
 
     # Make it a single-index dataframe
     data = data.stack()
@@ -38,7 +40,9 @@ def main():
     # print(data.head())
 
     # New column called 'Daily Change'
-    data['Daily Change'] = (data['Close'] / data['Open']) - 1
+    # data['Daily Change'] = (data['Close'] / data['Open']) - 1
+    data['Daily Change'] = (data['Close'] / data['Close'].shift(1)) - 1
+    data.loc[0, 'Daily Change'] = 0.0
 
     # New column called 'Flag' set to 0 (no action)
     data['Flag'] = 0
@@ -140,10 +144,11 @@ def main():
     # Plot sell signals
     plt.plot(data[data['Flag'] == -1].index, data['Account Value'][data['Flag'] == -1], 'v', markersize=10, color='r')
 
-    plt.xlabel('Time')
+    plt.xlabel('Trading Days')
     plt.ylabel('Value')
     plt.legend(['Strategy', 'Buy & Hold', 'Buy Signal', 'Sell Signal'])
-    plt.title('Strategy vs Buy & Hold')
+    # plt.title('Strategy vs Buy & Hold')
+    plt.title(f'{ticker} Backtest\nBuy {buy_percentage} on {buy_threshold*100}% days, \n Sell {sell_percentage} on {sell_threshold*100}% days')
     plt.show()
 
 
