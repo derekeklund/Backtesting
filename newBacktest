@@ -1,0 +1,113 @@
+import os
+import pandas as pd
+from openpyxl import load_workbook
+from tqdm import tqdm
+import datetime
+
+# Input parameters
+ticker = 'tqqq'
+starting_cap = 50000
+start_date = '2024-01-01'
+end_date = '2024-02-28'
+year = start_date[:4]
+
+
+# Read the data from the CSV file
+os.chdir(r'C:\Users\derek\Coding Projects\Backtesting\barchart_downloads')
+data = pd.read_csv(f'{ticker}_intraday-1min_{year}.csv')
+
+# Reverse the data
+data = data.iloc[::-1]
+
+# Reset the index
+data = data.reset_index(drop=True)
+
+# Split time into date and time
+data['Date'] = data['Time'].str.split(' ').str[0]
+
+# Convert date to datetime
+data['Date'] = pd.to_datetime(data['Date'])
+
+# Convert time to datetime
+data['Time'] = pd.to_datetime(data['Time'].str.split(' ').str[1], format='%H:%M').dt.time
+
+data = data.assign(OpeningBell=0.0)
+data = data.assign(Ten=0.0)
+
+print(data.head())
+
+thirtyMin = []
+negThirtyMin = []
+posThirtyMin = []
+
+ThreeThirty = []
+neg330 = []
+pos330 = []
+
+
+
+for i in tqdm(range(len(data))):
+    if data.loc[i, 'Time'] == datetime.time(9, 30):
+        data.loc[i, 'OpeningBell'] = data.loc[i, 'Open']
+    else:
+        data.loc[i, 'OpeningBell'] = data.loc[i-1, 'OpeningBell']
+
+    if data.loc[i, 'Time'] == datetime.time(10, 0):
+        data.loc[i, 'Ten'] = 1 - (data.loc[i-1, 'OpeningBell'] / data.loc[i, 'Open'])
+        thirtyMin.append(data.loc[i, 'Ten'])
+        if data.loc[i, 'Ten'] < 0:
+            negThirtyMin.append(data.loc[i, 'Ten'])
+        else:
+            posThirtyMin.append(data.loc[i, 'Ten'])
+
+    if data.loc[i, 'Time'] == datetime.time(15, 30):
+        data.loc[i, 'ThreeThirty'] = 1 - (data.loc[i-1, 'OpeningBell'] / data.loc[i, 'Open'])
+        ThreeThirty.append(data.loc[i, 'ThreeThirty'])
+        if data.loc[i, 'ThreeThirty'] < 0:
+            neg330.append(data.loc[i, 'ThreeThirty'])
+        else:
+            pos330.append(data.loc[i, 'ThreeThirty'])
+
+# print("Thirty Minute Data: ", thirtyMin)
+
+# Average the thirty minute data
+countPos = len(thirtyMin)
+avg = round((sum(thirtyMin) / len(thirtyMin)) * 100, 2)
+print(f"10:00 Average: {avg} (length {countPos})")
+
+# Average the negative thirty minute data
+countNeg = len(negThirtyMin)
+avgNeg = round((sum(negThirtyMin) / len(negThirtyMin)) * 100, 2)
+print(f"10:00 Average Negative: {avgNeg} (length {countNeg})")
+
+# Average the positive thirty minute data
+countPos = len(posThirtyMin)
+avgPos = round((sum(posThirtyMin) / len(posThirtyMin)) * 100, 2)
+print(f"10:00 Average Positive: {avgPos} (length {countPos})")
+
+# Average the 3:30 data
+countPos = len(ThreeThirty)
+avg = round((sum(ThreeThirty) / len(ThreeThirty)) * 100, 2)
+print(f"3:30 Average: {avg} (length {countPos})")
+
+# Average the negative 3:30 data
+countNeg = len(neg330)
+avgNeg = round((sum(neg330) / len(neg330)) * 100, 2)
+print(f"3:30 Average Negative: {avgNeg} (length {countNeg})")
+
+# Average the positive 3:30 data
+countPos = len(pos330)
+avgPos = round((sum(pos330) / len(pos330)) * 100, 2)
+print(f"3:30 Average Positive: {avgPos} (length {countPos})")
+
+# Save the data to an Excel file
+file = 'new_test_data_processed.xlsx'
+data.to_excel(file, index=False)
+
+# Plot this shit
+import matplotlib.pyplot as plt
+
+plt.figure(figsize=(12, 6))
+plt.plot(thirtyMin)
+plt.show()
+
