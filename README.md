@@ -1,14 +1,14 @@
-Backtesting Framework for Stationary & Co-Integrated Strategies Overview
+# Backtesting Framework for Stationary & Co-Integrated Strategies Overview
 
 This repository is a work in progress for a backtesting framework that:
 
-Tests for stationarity using methods like ADF (Augmented Dickey-Fuller) and KPSS tests.
+1. Tests for stationarity using methods like ADF (Augmented Dickey-Fuller)
 
-Performs co-integration analysis to identify pairs or groups of assets that exhibit mean-reverting behavior.
+2. Performs co-integration analysis to identify pairs or groups of assets that exhibit mean-reverting behavior.
 
-Backtests strategies based on statistical arbitrage and other mean-reversion techniques.
+3. Backtests strategies based on statistical arbitrage and other mean-reversion techniques.
 
-Features (Planned & Implemented):
+## Features (Planned & Implemented):
 
 ✔ Perform stationarity tests (ADF).
 
