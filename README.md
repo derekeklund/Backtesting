@@ -1,6 +1,6 @@
-# Backtesting Framework for Stationary & Co-Integrated Strategies Overview
+# Backtesting Framework for Stationary & Co-Integrated Strategies 
 
-This repository is a work in progress for a backtesting framework that:
+## This repository is a work in progress for a backtesting framework that:
 
 1. Tests for stationarity using methods like ADF (Augmented Dickey-Fuller)
 
