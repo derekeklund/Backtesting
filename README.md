@@ -9,6 +9,7 @@ Performs co-integration analysis to identify pairs or groups of assets that exhi
 Backtests strategies based on statistical arbitrage and other mean-reversion techniques.
 
 Features (Planned & Implemented):
+
 ✔ Perform stationarity tests (ADF).
 
 ✔ Identify co-integrated asset pairs.
