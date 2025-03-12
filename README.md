@@ -18,6 +18,6 @@
 
 ✔ Visualize results with Matplotlib
 
-✔ Optimize parameters using Sharpe ratio and drawdown metrics.
+⬜ Optimize parameters using Sharpe ratio and drawdown metrics.
 
-⬜ Build Flask-App to guide users through analyzing potential pairs and backtesting performance
+⬜ Build Flask-App or GUI to guide users through analyzing potential pairs and backtesting performance
