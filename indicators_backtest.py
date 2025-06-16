@@ -660,6 +660,9 @@ if 1 == 1:
 
                 if df.loc[i, 'decision'] == 'Buy' and df.loc[i, 'position'] == 'short': # Buy if in short position
 
+                    # For buy
+                    trading_capital = (high_belief - low_belief) * df['port_value'].iloc[i]
+
                     # Calculate the number of shares to buy
                     if ticker == 'NVDA':
                         df.loc[i, 'change_in_shares'] = trading_capital / df['NVDL'].iloc[i]
@@ -685,6 +688,9 @@ if 1 == 1:
                     trade_count += 1 # Increment trade count
 
                 elif df.loc[i, 'decision'] == 'Sell' and df.loc[i, 'position'] == 'long': # Sell if in long position
+
+                    # For sell (needs work for less than 2.0 belief). [just cash out of margin for now]
+                    trading_capital = -1 * df['cash'].iloc[i]
 
                     # Calculate the number of shares to sell
                     if ticker == 'NVDA':
