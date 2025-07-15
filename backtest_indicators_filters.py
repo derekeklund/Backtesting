@@ -5,7 +5,7 @@ import numpy as np
 import datetime
 from datetime import time as dt_time
 import matplotlib.pyplot as plt
-from polygon import RESTClient
+# from polygon import RESTClient
 import time
 import pytz
 import logging
@@ -57,21 +57,23 @@ Things to adjust:
 '''
 
 def log_message(message):
-    general_logger.info(message)
+    # general_logger.info(message)
+    print(message)
 
 def log_positions():
-    positions = trading_client.get_all_positions()
+    # positions = trading_client.get_all_positions()
 
-    if not positions:
-        log_message("No positions held")
-        return
+    # if not positions:
+    #     log_message("No positions held")
+    #     return
 
-    for i, position in enumerate(positions):
-        # Format the position details
-        position_value = round(float(position.market_value), 2)
-        log_message(f"Position #{i+1}: {position.symbol} | Qty: {position.qty} | Avg Price: {position.avg_entry_price} | Market Value: ${position_value:,.2f} | Unrealized P/L: {position.unrealized_pl}\n")
+    # for i, position in enumerate(positions):
+    #     # Format the position details
+    #     position_value = round(float(position.market_value), 2)
+    #     log_message(f"Position #{i+1}: {position.symbol} | Qty: {position.qty} | Avg Price: {position.avg_entry_price} | Market Value: ${position_value:,.2f} | Unrealized P/L: {position.unrealized_pl}\n")
 
-    return positions
+    # return positions
+    return
 
 def log_trade(order):
 
@@ -100,7 +102,6 @@ def date_and_time():
 def timetz(*args):
     eastern = pytz.timezone('America/New_York')
     return datetime.datetime.now(eastern).timetuple()
-
 
 def connors_rsi(df, rsi_period, streak_period, percent_rank_period):
     
@@ -270,20 +271,20 @@ log_message(f"~~~~~ Combo Indicators Bot ~~~~~")
 log_message(f"Log file path: {log_file}")
 log_message(f"Current Directory: {current_dir}")
 
-# API credentials
-api_key = 'PKTM13DDQTVDYWGBP2TF'
-secret_key = 'DqVsNposXekCdO7yZhteZbZeQ7ppMYjDShklO4iv'
-api_data_url = 'https://paper-api.alpaca.markets/'
+# # API credentials
+# api_key = 'PKTM13DDQTVDYWGBP2TF'
+# secret_key = 'DqVsNposXekCdO7yZhteZbZeQ7ppMYjDShklO4iv'
+# api_data_url = 'https://paper-api.alpaca.markets/'
 
-# Create trading client with API key and secret
-trading_client = TradingClient(api_key, secret_key, paper=True)
+# # Create trading client with API key and secret
+# trading_client = TradingClient(api_key, secret_key, paper=True)
 
-# Get account details
-account = dict(trading_client.get_account())
-log_message("*"*50)
-for k, v in account.items():
-    log_message(f"{k:30} {v}")
-log_message("*"*50)
+# # Get account details
+# account = dict(trading_client.get_account())
+# log_message("*"*50)
+# for k, v in account.items():
+#     log_message(f"{k:30} {v}")
+# log_message("*"*50)
 
 # Input params
 ticker = "NVDA"
@@ -330,6 +331,7 @@ len_starts = len(starts)
 print(f"Number of starts: {len_starts}")
 
 switches = ['bollinger', 'ma_stretch', 'crsi', 'regime', 'volvol', 'kalman', 'buy_heavy', 'strong_belief']
+# switches = ['regime', 'volvol', 'kalman']
 
 from itertools import product
 # from tqdm import tqdm
@@ -403,9 +405,9 @@ if 1 == 1:
             # Filter switches
             regime_filter = False # Bull/Bear/Flat Regime Filter
             volvol_filter = False # Volatility/Volume Filter
-            kalman_filter = True # Kalman Filter
+            kalman_filter = False # Kalman Filter
             # Lean towards buy over sell
-            buy_heavy = True
+            buy_heavy = False
 
         # CRSI parameters
         if buy_heavy:
@@ -494,13 +496,13 @@ if 1 == 1:
         log_message(f"Start Date: {start} | End Date: {end} | Days Ago: {days_ago}")
 
         # Get current NVDL position
-        try:
-            position = trading_client.get_open_position('NVDL')
-            position_value = round(float(position.market_value), 2)
-            log_message(f"Current Position: {position.symbol} | Market Value: {position_value:,.2f} | Qty: {position.qty} | Avg Price: {position.avg_entry_price}\n")
-        except Exception as e:
-            position = None
-            log_message(f">>>>> No position exists for NVDL <<<<<\n")
+        # try:
+        #     position = trading_client.get_open_position('NVDL')
+        #     position_value = round(float(position.market_value), 2)
+        #     log_message(f"Current Position: {position.symbol} | Market Value: {position_value:,.2f} | Qty: {position.qty} | Avg Price: {position.avg_entry_price}\n")
+        # except Exception as e:
+        #     position = None
+        #     log_message(f">>>>> No position exists for NVDL <<<<<\n")
 
         log_message(f'----- Indicators & Filters Switches -----')
         log_message(f"Bollinger Bands: {bollinger} | Moving Average Stretch: {ma_stretch} | Connors RSI: {crsi}")
@@ -549,6 +551,11 @@ if 1 == 1:
             (df['ema_diff'] >= ma_stretch_sell_level),
             ((df['ema_diff'] > ma_stretch_buy_level) & (df['ema_diff'] < ma_stretch_sell_level))
         ]
+        kalman_conditions = [
+            (df['Close'] < df['Kalman_Lower']),
+            (df['Close'] >= df['Kalman_Lower']),
+            (df['Close'] >= df['Kalman_Upper'])
+        ]
 
         flag_values = [1, -1, 0]
 
@@ -565,7 +572,11 @@ if 1 == 1:
             df['ma_stretch_flag'] = np.select(ma_stretch_conditions, flag_values)
         else:
             df['ma_stretch_flag'] = 0
-        df = df.assign(flag_tally = lambda x: x['crsi_flag'] + x['bollinger_flag'] + x['ma_stretch_flag'])
+        if kalman_filter:
+            df['kalman_flag'] = np.select(kalman_conditions, flag_values)
+        else:
+            df['kalman_flag'] = 0
+        df = df.assign(flag_tally = lambda x: x['crsi_flag'] + x['bollinger_flag'] + x['ma_stretch_flag'] + x['kalman_flag'])
 
         # Lookback and midway prices (for regime filter)
         df['lookback'] = df['Close'].shift(lookback* -1) # Shift lookback price
@@ -615,8 +626,8 @@ if 1 == 1:
         # Kalman filter
         if kalman_filter:
             df = df.assign(kalman_filter = lambda x: np.select(
-                [(x['Close'] < x['Kalman_Lower']) == 'Buy',
-                (x['Close'] >= x['Kalman_Upper']) == 'Sell'],
+                [(x['kalman_flag']) == 1,
+                (x['kalman_flag']) < 1],
                 [1, -1],
                 default=0))
         else:
@@ -839,256 +850,6 @@ if 1 == 1:
         # Set index back to datetime
         df.set_index('timestamp', inplace=True)
 
-        # END BACKTEST
-
-        # Bollinger Bands buy/sell signals
-        log_message(f"----- Latest Bollinger Band Stretch Numbers -----")
-        if bollinger:
-            log_message(f"Bollinger SD: {bollinger_sd} | SMA Window: {sma_window}")
-            log_message(f"Bollinger Buy Level (Lower Band): {bollinger_buy_level}")
-            log_message(f"Bollinger Sell Level (Upper Band): {bollinger_sell_level}")
-            log_message(f" --> Last Price: {current_price}")
-            if current_price < bollinger_buy_level:
-                buy_signals += 1
-                log_message(f"Buy Signal Detected +1\n")
-            elif current_price > bollinger_sell_level:
-                sell_signals += 1
-                log_message(f"Sell Signal Detected +1\n")
-            else:
-                log_message(f"No Bollinger Bands signal detected\n")
-        else:
-            combo_threshold -= 1
-            log_message("XXX - Bollinger Bands are turned off\n")
-
-        # Moving Average Stretch buy/sell signals
-        log_message(f"----- Latest Moving Average Stretch Numbers -----")
-        if ma_stretch:
-            log_message(f"Stretch SD: {stretch_sd} | EMA Window: {ema_window}")
-            log_message(f"Standard Deviation (1SD) of EMA/Price Difference: {std_dev_ema}")
-            log_message(f"MA Stretch Buy Level: {ma_stretch_buy_level} | MA Stretch Sell Level: {ma_stretch_sell_level}")
-            log_message(f" --> Last EMA Diff: {ema_diff}")
-            if ema_diff < ma_stretch_buy_level:
-                buy_signals += 1
-                log_message(f"Buy Signal Detected +1\n")
-            elif ema_diff > ma_stretch_sell_level:
-                sell_signals += 1
-                log_message(f"Sell Signal Detected +1\n")
-            else:
-                log_message(f"No MA Stretch signal detected\n")
-        else:
-            combo_threshold -= 1
-            log_message("XXX - Moving Average Stretch is turned off\n")
-
-        # Connors RSI buy/sell signals
-        log_message(f"----- Latest CRSI Numbers -----")
-        if crsi:
-            log_message(f"CRSI Calculation = [ RSI({rsi_period}) + RSI Streak({streak_period}) + Percent Rank({percent_rank_period}) ] / 3")
-            log_message(f"CRSI Calculation = [ {round(df['rsi'].iloc[-1], 2)} + {df['rsi_streak'].iloc[-1]} + {round(df['percent_rank'].iloc[-1], 2)} ] / 3")
-            log_message(f"CRSI Buy Level: {crsi_buy_level} | CRSI Sell Level: {crsi_sell_level}")
-            log_message(f" --> Current CRSI: {current_crsi}")
-            if current_crsi < crsi_buy_level:
-                buy_signals += 1
-                log_message(f"Buy Signal Detected +1\n")
-            elif current_crsi > crsi_sell_level:
-                sell_signals += 1
-                log_message(f"Sell Signal Detected +1\n")
-            else:
-                log_message(f"No CRSI signal detected\n")
-        else:
-            combo_threshold -= 1
-            log_message("XXX - Connors RSI is turned off\n")
-
-
-        # SPOOF IT
-        # buy_signals = 4
-        # sell_signals = 4
-        # filter_checks = 4
-
-        # Regime filter (Bull/Bear/Flat)
-        log_message(f"----- Momentum Filter (Bull/Bear/Flat) -----")
-        if regime_filter:
-
-            latest_close = round(df['Close'].iloc[-1], 2)
-            midway_close = round(df['Close'].iloc[midway], 2)
-            lookback_close = round(df['Close'].iloc[lookback], 2)
-
-            latest_date = df.index[-1].strftime('%Y-%m-%d %H:%M:%S')
-            midway_date = df.index[midway].strftime('%Y-%m-%d %H:%M:%S')
-            lookback_date = df.index[lookback].strftime('%Y-%m-%d %H:%M:%S')
-
-            log_message(f"Lookback Close: {lookback_close} ({lookback_date})")
-            log_message(f"Midway Close: {midway_close} ({midway_date})")
-            log_message(f"Latest Close: {latest_close} ({latest_date})")
-
-            market = "Flat"
-
-            # Determine market regime
-            if latest_close > lookback_close and latest_close > midway_close:
-                market = "Bull"
-                log_message(f"+++ Bull Market Detected")
-            elif latest_close < lookback_close and latest_close < midway_close:
-                market = "Bear"
-                log_message(f"--- Bear Market Detected")
-            else:
-                log_message(f"... Flat Market Detected")
-
-            # Regime filter checks
-            if market == "Bull" and buy_signals >= combo_threshold:
-                filter_checks += 1
-                log_message(f"Regime Filter Passed +1 (for 'Buy' orders)\n")
-            elif market == "Bear" and sell_signals >= combo_threshold:
-                filter_checks += 1
-                log_message(f"Regime Filter Passed +1 (for 'Sell' orders)\n")
-            else:
-                log_message(f"Regime Filter Failed\n")
-
-        else:
-            filter_threshold -= 1
-            log_message("XXX - Regime Filter is turned off\n")
-
-        # Volume/Volatility filter
-        log_message(f"----- VolVol Filter -----")
-        if volvol_filter:
-
-            volvol_tally = 0
-            
-            # Relative Volume
-            current_relative_volume = round(df['Relative_Volume'].iloc[-1], 2)
-            log_message(f"Latest Relative Volume: {current_relative_volume}")
-
-            # Volume check
-            if current_relative_volume >= 1.0:
-                volvol_tally += 1
-                log_message(f"+++ High Volume Detected")
-            else:
-                log_message(f"--- Low Volume Detected")
-
-            # ATR values
-            latest_ATR = round(df['ATR'].iloc[-1], 2)
-            lookback_ATR = round(df['ATR'].iloc[lookback], 2)
-            log_message(f"Latest ATR: {latest_ATR} | Lookback ATR: {lookback_ATR}")
-
-            # Volatility check
-            if latest_ATR > lookback_ATR:
-                volvol_tally += 1
-                log_message(f"+++ High Volatility Detected")
-            else:
-                log_message(f"--- Low Volatility Detected")  
-
-            # Overall check (1 above average, 1 below average)
-            if volvol_tally == 1:
-                filter_checks += 1
-                log_message(f"VolVol Filter Passed +1\n")
-            else:
-                log_message(f"VolVol Filter Failed\n")
-        else:
-            filter_threshold -= 1
-            log_message("XXX - VolVol Filter is turned off\n")
-
-
-        # Buying power
-        log_message(f"----- Portfolio Information -----")
-        account = trading_client.get_account()
-        port_value = float(account.portfolio_value)
-        log_message(f"Portfolio Value: ${port_value:,.2f}")
-        overnight_max = port_value * 2  # 2x overnight buying power
-        low_belief_notional = round((overnight_max * 0.4), 2)  # 40% of portfolio value
-        high_belief_notional = round((overnight_max * 0.6), 2)  # 60% of portfolio value
-        log_message(f"Low Belief Position (40% of RegT): ${low_belief_notional:,.2f} | High Belief Position (60% RegT): ${high_belief_notional:,.2f}")
-        trade_notional = round((overnight_max * 0.2), 2)  # Buy/sell 20% of portfolio value
-        log_message(f"Trade BP (20%): ${trade_notional:,.2f}")
-
-        # Get current NVDL position
-        try:
-            position = trading_client.get_open_position('NVDL')
-            position_value = float(position.market_value)
-            log_message(f"Current Position: {position.symbol} | Qty: {position.qty} | Avg Price: {position.avg_entry_price} | Market Value: ${position_value:,.2f} | Unrealized P/L: {position.unrealized_pl}")
-        except Exception as e:
-            position_value = None
-            log_message(f">>>>> No position exists for NVDL <<<<<")
-
-            # Start with low belief position (40% of RegT)
-
-            time.sleep(10)  # Let position settle
-
-            position = trading_client.get_open_position('NVDL')
-            position_value = float(position.market_value)
-            log_message(f"Current Position: {position.symbol} | Qty: {position.qty} | Avg Price: {position.avg_entry_price} | Market Value: ${position_value:,.2f} | Unrealized P/L: {position.unrealized_pl}")
-
-        # Determine what position we're in
-        low = abs(low_belief_notional - position_value)
-        high = abs(high_belief_notional - position_value)
-        log_message(f"Low Belief Position Difference: ${low:,.2f} | High Belief Position Difference: ${high:,.2f}")
-        if low < high:
-            holdings_belief = "low"
-            log_message(f"Low Belief Holdings: ${position_value:,.2f}\n")
-        else:
-            holdings_belief = "high"
-            log_message(f"High Belief Holdings: ${position_value:,.2f}\n")
-
-        # More spoofin
-        # filter_checks = 4
-
-        # Signal + Filter Summary
-        log_message(f"----- Signal + Filter Summary -----")
-        log_message(f"Combo Threshold: {combo_threshold} | Buy Signals: {buy_signals} | Sell Signals: {sell_signals}")
-        log_message(f"Filter Threshold: {filter_threshold} | Filter Checks: {filter_checks}\n")
-
-        # Buy Signal
-        log_message(f"----- Buy/Sell Decisions -----")
-        log_message(f"Buy Signals: ({buy_signals}/{combo_threshold}) | Filter Checks: ({filter_checks}/{filter_threshold})")
-        if buy_signals >= combo_threshold: 
-            
-            if filter_checks >= filter_threshold:
-
-                if holdings_belief == "low":
-                    log_message(f"+++ Buying 50% more on high belief")
-
-                    # Buy 50% more (trade_notional) if in low belief position
-
-                else:
-                    log_message(f"Already in high belief position, no buy action taken.")
-
-        # Sell Logic
-        log_message(f"Sell Signals: ({sell_signals}/{combo_threshold}) | Filter Checks: ({filter_checks}/{filter_threshold})")
-        if sell_signals >= combo_threshold:
-            
-            if filter_checks >= filter_threshold:
-
-                if holdings_belief == "high":
-                    log_message(f"--- Selling 33% on low belief")
-
-                    # Sell 33% of position if in high belief position (trade_notional)
-
-                else:
-                    log_message(f"Already in low belief position, no sell action taken.")
-
-        # time.sleep(10) # Let positions settle
-
-        positions = log_positions()
-        # Get NVDL market value
-        if positions:
-            nvdl_value = next((float(pos.market_value) for pos in positions if pos.symbol == 'NVDL'), None)
-
-        # Get portfolio information
-        log_message(f"----- Portfolio Information -----")
-        account = trading_client.get_account()
-        start_date = account.created_at.strftime('%Y-%m-%d')
-        days_held = (datetime.datetime.now(eastern) - account.created_at).days
-        log_message(f"Account Created: {start_date} | Days Held: {days_held} days")
-        port_value = float(account.portfolio_value)
-        log_message(f"Portfolio Value: ${port_value:,.2f}")
-        log_message(f"NVDL Market Value: ${nvdl_value:,.2f}")
-        cash = float(account.cash)
-        log_message(f"Cash: ${cash:,.2f}")
-        initial_port_value = 50000  # Assuming initial value of $50,000
-        port_return = ((port_value - initial_port_value) / initial_port_value) * 100  # Calculate percentage return
-        port_return = round(port_return, 3)
-        log_message(f"Portfolio Return: {port_return}%\n")
-
-        log_message(f"~~~ Sleeping for 1 hour...")
-        log_message(f"jk just testing the bot, not actually trading\n")
-
         log_message(f"----- Backtest Summary -----")
         buy_count = len(df[df['trade'] == 1]) # Count buy trades
         sell_count = len(df[df['trade'] == -1]) # Count sell trades
@@ -1103,6 +864,8 @@ if 1 == 1:
         log_message(f"Max Portfolio Value: ${max_value:,.2f} | Max Drawdown: ${max_drawdown:,.2f} ({round(max_drawdown_pct, 2)}%)")
         algo_period = f"{start} to {end}"
         log_message(f"Backtest Period: {algo_period} | Ticker: {ticker} | Interval: {interval}")
+
+        # END BACKTEST
 
         if 1 == 0:
             # Save summary to a text file
@@ -1125,6 +888,11 @@ if 1 == 1:
             # Make index timezone unaware
             df.index = df.index.tz_localize(None)  # Make index timezone unaware
 
+            try:
+                os.chdir(r'C:\Users\eklundmd\OneDrive - PPD\Desktop\Python Projects\backtest')
+            except:
+                log_message(f"all gucci")    
+
             # Save df to excel
             df.to_excel(f"{ticker}_backtest_df.xlsx", index=True)
 
@@ -1139,6 +907,7 @@ if 1 == 1:
             'Buy Heavy': [buy_heavy],
             'Regime': [regime_filter],
             'VolVol': [volvol_filter],
+            'Kalman': [kalman_filter],
             'Total Trades': [trade_count],
             'Port Value': [round(port_value, 2)],
             'Returns': [round(port_return, 2)],
