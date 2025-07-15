@@ -38,12 +38,6 @@ Exit Strat = Stop & Reverse Exit (Always in)
 - Uses Connors RSI (RSI + Streak + Percent Rank)
 - Buy if CRSI < 10 (oversold) & sell if CRSI > 90 (overbought)
 
-General steps:
-1. Get at least 200 bars (1m, 1hr, 1day, etc.) of closing prices from yf
-2. Add new bars to the dataframe as they come in from Alpaca
-3. Calculate Connor's RSI and buy if under 10 (oversold)
-and sell if over 90 (overbought)
-
 Things to adjust:
 1. bar size (interval) - 1m, 5m, 15m, 30m, 1h, 1d, etc. [default = 1h]
 2. # of bars - 100, 150, 200, etc. [currently 200 bars]
@@ -61,18 +55,7 @@ def log_message(message):
     print(message)
 
 def log_positions():
-    # positions = trading_client.get_all_positions()
 
-    # if not positions:
-    #     log_message("No positions held")
-    #     return
-
-    # for i, position in enumerate(positions):
-    #     # Format the position details
-    #     position_value = round(float(position.market_value), 2)
-    #     log_message(f"Position #{i+1}: {position.symbol} | Qty: {position.qty} | Avg Price: {position.avg_entry_price} | Market Value: ${position_value:,.2f} | Unrealized P/L: {position.unrealized_pl}\n")
-
-    # return positions
     return
 
 def log_trade(order):
@@ -272,19 +255,6 @@ log_message(f"Log file path: {log_file}")
 log_message(f"Current Directory: {current_dir}")
 
 # # API credentials
-# api_key = 'PKTM13DDQTVDYWGBP2TF'
-# secret_key = 'DqVsNposXekCdO7yZhteZbZeQ7ppMYjDShklO4iv'
-# api_data_url = 'https://paper-api.alpaca.markets/'
-
-# # Create trading client with API key and secret
-# trading_client = TradingClient(api_key, secret_key, paper=True)
-
-# # Get account details
-# account = dict(trading_client.get_account())
-# log_message("*"*50)
-# for k, v in account.items():
-#     log_message(f"{k:30} {v}")
-# log_message("*"*50)
 
 # Input params
 ticker = "NVDA"
@@ -319,7 +289,7 @@ start = '2023-01-01' # 12
 # start = '2024-09-01' # 17
 # start = '2025-01-01' # 18
 
-df_results = pd.DataFrame(columns=['Start', 'End', 'Low Belief', 'High Belief', 'Bollinger', 'MA Stretch', 'CRSI', 'Buy Heavy', 'Regime', 'VolVol', 'Total Trades', 'Port Value', 'Returns', 'BnH', 'Diff', 'MaxDraw', 'Combo'])
+df_results = pd.DataFrame(columns=['Start', 'End', 'Low Belief', 'High Belief', 'Bollinger', 'MA Stretch', 'CRSI', 'Regime', 'VolVol', 'Kalman', 'Total Trades', 'Port Value', 'Returns', 'BnH', 'Diff', 'MaxDraw', 'Combo'])
 
 starts = ['2023-01-01', '2023-05-01', '2023-09-01', '2024-01-01', '2024-05-01', '2024-09-01', '2023-01-01']
 # starts = ['2023-02-01', '2023-06-01', '2023-10-01', '2024-02-01', '2024-06-01', '2024-10-01', '2023-02-01']
@@ -330,7 +300,7 @@ starts = ['2023-01-01', '2023-05-01', '2023-09-01', '2024-01-01', '2024-05-01', 
 len_starts = len(starts)
 print(f"Number of starts: {len_starts}")
 
-switches = ['bollinger', 'ma_stretch', 'crsi', 'regime', 'volvol', 'kalman', 'buy_heavy', 'strong_belief']
+switches = ['bollinger', 'ma_stretch', 'crsi', 'regime', 'volvol', 'kalman']
 # switches = ['regime', 'volvol', 'kalman']
 
 from itertools import product
@@ -339,7 +309,9 @@ from itertools import product
 combo = 1
 
 # Loop over all combinations of switches
-for p in product([False, True], repeat=7):
+len_combos = 2 ** len(switches) # 2^n combinations
+log_message(f"Number of combinations: {len_combos}")
+for p in product([False, True], repeat=len(switches)):
     params = dict(zip(switches,p))
 
     # Set switches
@@ -367,15 +339,10 @@ for p in product([False, True], repeat=7):
         kalman_filter = True
     else:
         kalman_filter = False
-    if params['buy_heavy'] == True:
-        buy_heavy = True
-    else:
-        buy_heavy = False
 
-
-if 1 == 1:
-    one_sim = True # Set to True to run one simulation (and disable 1 == 1)
-    starts = ['2023-01-01'] # Set to one start date for one simulation
+# if 1 == 1:
+    one_sim = False # Set to True to run one simulation (and disable 1 == 1)
+    # starts = ['2023-01-01'] # Set to one start date for one simulation
     len_starts = len(starts) # Length of starts list
 
     # Test out all periods [EPOCHS]
@@ -406,16 +373,10 @@ if 1 == 1:
             regime_filter = False # Bull/Bear/Flat Regime Filter
             volvol_filter = False # Volatility/Volume Filter
             kalman_filter = False # Kalman Filter
-            # Lean towards buy over sell
-            buy_heavy = False
 
         # CRSI parameters
-        if buy_heavy:
-            crsi_buy_level = 20 # Buy if CRSI is under this
-            crsi_sell_level = 95 # Sell if CRSI is over this
-        else:
-            crsi_buy_level = 10 # Buy if CRSI is under this
-            crsi_sell_level = 90 # Sell if CRSI is over this
+        crsi_buy_level = 10 # Buy if CRSI is under this
+        crsi_sell_level = 90 # Sell if CRSI is over this
         rsi_period = 3 # Connors RSI period
         streak_period = 2 # Connors RSI streak period
         percent_rank_period = 100 # Connors RSI percent rank period
@@ -454,12 +415,14 @@ if 1 == 1:
         # Get Bollinger Bands / cutoffs
         df['sma_20'] = df['Close'].rolling(window=window).mean() # 20-day SMA
         df['1_sd_sma'] = df['Close'].rolling(window=window).std() # 1-SD from SMA
-        if buy_heavy:
-            df['lower_band'] = df['sma_20'] - ((bollinger_sd * 0.5) * df['1_sd_sma']) # Lower band (-1 SD)
-            df['upper_band'] = df['sma_20'] + ((bollinger_sd * 1.5) * df['1_sd_sma']) # Upper band (+1 SD)
-        else:
-            df['lower_band'] = df['sma_20'] - (bollinger_sd * df['1_sd_sma']) # Lower band (-2 SD)
-            df['upper_band'] = df['sma_20'] + (bollinger_sd * df['1_sd_sma']) # Upper band (+2 SD)
+
+        # if buy_heavy:
+        #     df['lower_band'] = df['sma_20'] - ((bollinger_sd * 0.5) * df['1_sd_sma']) # Lower band (-1 SD)
+        #     df['upper_band'] = df['sma_20'] + ((bollinger_sd * 1.5) * df['1_sd_sma']) # Upper band (+1 SD)
+        # else:
+        df['lower_band'] = df['sma_20'] - (bollinger_sd * df['1_sd_sma']) # Lower band (-2 SD)
+        df['upper_band'] = df['sma_20'] + (bollinger_sd * df['1_sd_sma']) # Upper band (+2 SD)
+
         bollinger_buy_level = round(df['lower_band'].iloc[-1], 2)
         bollinger_sell_level = round(df['upper_band'].iloc[-1], 2)
 
@@ -496,13 +459,6 @@ if 1 == 1:
         log_message(f"Start Date: {start} | End Date: {end} | Days Ago: {days_ago}")
 
         # Get current NVDL position
-        # try:
-        #     position = trading_client.get_open_position('NVDL')
-        #     position_value = round(float(position.market_value), 2)
-        #     log_message(f"Current Position: {position.symbol} | Market Value: {position_value:,.2f} | Qty: {position.qty} | Avg Price: {position.avg_entry_price}\n")
-        # except Exception as e:
-        #     position = None
-        #     log_message(f">>>>> No position exists for NVDL <<<<<\n")
 
         log_message(f'----- Indicators & Filters Switches -----')
         log_message(f"Bollinger Bands: {bollinger} | Moving Average Stretch: {ma_stretch} | Connors RSI: {crsi}")
@@ -875,7 +831,7 @@ if 1 == 1:
                     real_ticker = 'NVDL'
                 f.write(f"----- Backtest Summary ({real_ticker} - {algo_period} [{interval}])-----\n")
                 f.write(f"Bollinger Bands: {bollinger} | Moving Average Stretch: {ma_stretch} | Connors RSI: {crsi}\n")
-                f.write(f"Regime Filter (Bull/Bear/Flat): {regime_filter} | VolVol Filter: {volvol_filter} | Buy Heavy: {buy_heavy}\n")
+                f.write(f"Regime Filter (Bull/Bear/Flat): {regime_filter} | VolVol Filter: {volvol_filter} {kalman_filter}\n")
                 f.write(f"Low Belief: {low_belief} | High Belief: {high_belief}\n")
                 f.write(f"Total Trades: {trade_count} | Buy Trades: {buy_count} | Sell Trades: {sell_count}\n")
                 f.write(f"Final Portfolio Value: ${port_value:,.2f} ({round((port_return), 2)}%)\n")
@@ -904,7 +860,6 @@ if 1 == 1:
             'Bollinger': [bollinger],
             'MA Stretch': [ma_stretch],
             'CRSI': [crsi],
-            'Buy Heavy': [buy_heavy],
             'Regime': [regime_filter],
             'VolVol': [volvol_filter],
             'Kalman': [kalman_filter],
@@ -918,7 +873,7 @@ if 1 == 1:
         })
         df_results = pd.concat([df_results, new_results_row], ignore_index=True)
 
-    print(f"************ Count {combo}/64 **************")
+    print(f"************ Count {combo}/{len_combos} **************")
     time.sleep(2)
     combo += 1
 
