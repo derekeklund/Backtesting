@@ -281,7 +281,7 @@ end = (datetime.datetime.now() + datetime.timedelta(days=1)).strftime('%Y-%m-%d'
 # start = '2019-07-01' # 10
 # start = '2020-01-01' # 11
 
-start = '2023-01-01' # 12
+start = '2025-01-01' # 12
 # start = '2023-05-01' # 13
 # start = '2023-09-01' # 14
 # start = '2024-01-01' # 15
@@ -292,6 +292,7 @@ start = '2023-01-01' # 12
 df_results = pd.DataFrame(columns=['Start', 'End', 'Low Belief', 'High Belief', 'Bollinger', 'MA Stretch', 'CRSI', 'Regime', 'VolVol', 'Kalman', 'Total Trades', 'Port Value', 'Returns', 'BnH', 'Diff', 'MaxDraw', 'Combo'])
 
 starts = ['2023-01-01', '2023-05-01', '2023-09-01', '2024-01-01', '2024-05-01', '2024-09-01', '2023-01-01']
+starts = ['2023-01-01']
 # starts = ['2023-02-01', '2023-06-01', '2023-10-01', '2024-02-01', '2024-06-01', '2024-10-01', '2023-02-01']
 # starts = ['2023-03-01', '2023-07-01', '2023-11-01', '2024-03-01', '2024-07-01', '2024-11-01', '2023-03-01']
 # starts = ['2023-04-01', '2023-08-01', '2023-12-01', '2024-04-01', '2024-08-01', '2024-12-01', '2023-04-01']
@@ -303,6 +304,10 @@ print(f"Number of starts: {len_starts}")
 switches = ['bollinger', 'ma_stretch', 'crsi', 'regime', 'volvol', 'kalman']
 # switches = ['regime', 'volvol', 'kalman']
 
+# Beliefs
+low_belief = 1 # 0.8 = 80% belief (20% cash)
+high_belief = 1.5 # 1.25 pretty good (1.5 --> 94% drawdown)
+
 from itertools import product
 # from tqdm import tqdm
 
@@ -311,6 +316,7 @@ combo = 1
 # Loop over all combinations of switches
 len_combos = 2 ** len(switches) # 2^n combinations
 log_message(f"Number of combinations: {len_combos}")
+time.sleep(5)
 for p in product([False, True], repeat=len(switches)):
     params = dict(zip(switches,p))
 
@@ -340,10 +346,12 @@ for p in product([False, True], repeat=len(switches)):
     else:
         kalman_filter = False
 
-# if 1 == 1:
-    one_sim = False # Set to True to run one simulation (and disable 1 == 1)
-    # starts = ['2023-01-01'] # Set to one start date for one simulation
+if 1 == 1:
+    one_sim = True # Set to True to run one simulation (and disable 1 == 1)
+    starts = ['2024-06-01'] # Set to one start date for one simulation
     len_starts = len(starts) # Length of starts list
+    if one_sim == True:
+        len_combos = 1
 
     # Test out all periods [EPOCHS]
     for i, start in enumerate(starts):
@@ -351,7 +359,7 @@ for p in product([False, True], repeat=len(switches)):
         end = (datetime.datetime.strptime(start, '%Y-%m-%d') + datetime.timedelta(days=365)).strftime('%Y-%m-%d')
 
         if i == len_starts - 1:
-            end = '2025-06-12'
+            end = '2025-07-15'
 
         print(f"sim {i+1} - {start} - {end}")
 
@@ -360,18 +368,14 @@ for p in product([False, True], repeat=len(switches)):
         # end = (datetime.datetime.strptime(start, '%Y-%m-%d') + datetime.timedelta(days=365)).strftime('%Y-%m-%d')
         # end = '2025-06-12'
 
-        # Beliefs
-        low_belief = 1 # 0.8 = 80% belief (20% cash)
-        high_belief = 2 # 1.25 pretty good (1.5 --> 94% drawdown)
-
         if one_sim:
             # Indicator switches
             bollinger = False # Use Bollinger Bands
             ma_stretch = False # Use Moving Average Stretch
             crsi = False # Use Connors RSI
             # Filter switches
-            regime_filter = False # Bull/Bear/Flat Regime Filter
-            volvol_filter = False # Volatility/Volume Filter
+            regime_filter = True # Bull/Bear/Flat Regime Filter
+            volvol_filter = True # Volatility/Volume Filter
             kalman_filter = False # Kalman Filter
 
         # CRSI parameters
