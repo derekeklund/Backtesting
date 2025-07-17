@@ -257,9 +257,9 @@ log_message(f"Current Directory: {current_dir}")
 # # API credentials
 
 # Input params
-ticker = "NVDA" # AMZN
+ticker = "GLD" # AMZN
 interval = "1d" # Bars! 1m, 2m, 5m, 15m, 30m, 60m, 90m, 1h, 1d, 5d, 1wk
-day_lag = False
+day_lag = True
 days_ago = 365 # How many days back to get data from
 lookback_length = 150 # Number of days (25 * 7 = 175 bars for 1h interval)
 # Get lookback + midway
@@ -267,47 +267,25 @@ lookback = -1 * lookback_length # -25 days for 1h bars
 midway = int(lookback / 2) # 12.5 days for 1h bars
 window = 20 # days for SMA + EMA
 start = (datetime.datetime.now() - datetime.timedelta(days=days_ago)).strftime('%Y-%m-%d')
-end = (datetime.datetime.now() + datetime.timedelta(days=1)).strftime('%Y-%m-%d') # Tomorrow's date
+end = (datetime.datetime.now() + datetime.timedelta(days=1)).strftime('%Y-%m-%d') # Tomorrow
+# Beliefs
+low_belief = 1 # 0.8 = 80% belief (20% cash)
+high_belief = 2 # 1.25 pretty good (1.5 --> 94% drawdown)
+# Charts
+one_chart = True # Set to True to plot one chart
 
-# Start & End for backtesting
-# start = '2015-01-01' # 1
-# start = '2015-07-01' # 2
-# start = '2016-01-01' # 3
-# start = '2016-07-01' # 4
-# start = '2017-01-01' # 5
-# start = '2017-07-01' # 6
-# start = '2018-01-01' # 7
-# start = '2018-07-01' # 8
-# start = '2019-01-01' # 9
-# start = '2019-07-01' # 10
-# start = '2020-01-01' # 11
-
-start = '2025-01-01' # 12
-# start = '2023-05-01' # 13
-# start = '2023-09-01' # 14
-# start = '2024-01-01' # 15
-# start = '2024-05-01' # 16
-# start = '2024-09-01' # 17
-# start = '2025-01-01' # 18
-
+# Initialize DataFrame to store results
 df_results = pd.DataFrame(columns=['Start', 'End', 'Low Belief', 'High Belief', 'Bollinger', 'MA Stretch', 'CRSI', 'Regime', 'VolVol', 'Kalman', 'Total Trades', 'Port Value', 'Returns', 'BnH', 'Diff', 'MaxDraw', 'Combo'])
 
+# Define the start dates for backtesting
 starts = ['2023-01-01', '2023-05-01', '2023-09-01', '2024-01-01', '2024-05-01', '2024-09-01', '2023-01-01']
-starts = ['2023-01-01']
-# starts = ['2023-02-01', '2023-06-01', '2023-10-01', '2024-02-01', '2024-06-01', '2024-10-01', '2023-02-01']
-# starts = ['2023-03-01', '2023-07-01', '2023-11-01', '2024-03-01', '2024-07-01', '2024-11-01', '2023-03-01']
-# starts = ['2023-04-01', '2023-08-01', '2023-12-01', '2024-04-01', '2024-08-01', '2024-12-01', '2023-04-01']
-
-# starts = ['2023-01-01', '2023-05-01', '2023-09-01', '2024-01-01', '2024-05-01', '2024-09-01', '2023-01-01','2023-02-01', '2023-06-01', '2023-10-01', '2024-02-01', '2024-06-01', '2024-10-01', '2023-02-01', '2023-03-01', '2023-07-01', '2023-11-01', '2024-03-01', '2024-07-01', '2024-11-01', '2023-03-01', '2023-04-01', '2023-08-01', '2023-12-01', '2024-04-01', '2024-08-01', '2023-04-01']
+starts = ['2023-01-01'] # Just full 1.5 years
 len_starts = len(starts)
 print(f"Number of starts: {len_starts}")
 
+# 3 indicator switches, 3 filter switches
 switches = ['bollinger', 'ma_stretch', 'crsi', 'regime', 'volvol', 'kalman']
 # switches = ['regime', 'volvol', 'kalman']
-
-# Beliefs
-low_belief = 1 # 0.8 = 80% belief (20% cash)
-high_belief = 1.5 # 1.25 pretty good (1.5 --> 94% drawdown)
 
 from itertools import product
 # from tqdm import tqdm
@@ -349,7 +327,7 @@ for p in product([False, True], repeat=len(switches)):
 
 if 1 == 1:
     one_sim = True # Set to True to run one simulation (and disable 1 == 1)
-    starts = ['2023-01-01'] # Set to one start date for one simulation
+    # starts = ['2023-01-01'] # Set to one start date for one simulation
     len_starts = len(starts) # Length of starts list
     if one_sim == True:
         len_combos = 1
@@ -373,10 +351,10 @@ if 1 == 1:
             # Indicator switches
             bollinger = False # Use Bollinger Bands
             ma_stretch = False # Use Moving Average Stretch
-            crsi = False # Use Connors RSI
+            crsi = True # Use Connors RSI
             # Filter switches
             regime_filter = True # Bull/Bear/Flat Regime Filter
-            volvol_filter = True # Volatility/Volume Filter
+            volvol_filter = False # Volatility/Volume Filter
             kalman_filter = False # Kalman Filter
 
         # CRSI parameters
@@ -848,6 +826,7 @@ if 1 == 1:
         log_message(f"Max Portfolio Value: ${max_value:,.2f} | Max Drawdown: ${max_drawdown:,.2f} ({round(max_drawdown_pct, 2)}%)")
         algo_period = f"{start} to {end}"
         log_message(f"Backtest Period: {algo_period} | Ticker: {ticker} | Interval: {interval}")
+        log_message(f"Low Belief: {low_belief} | High Belief: {high_belief}\n")
 
         # END BACKTEST
 
@@ -873,7 +852,7 @@ if 1 == 1:
             try:
                 os.chdir(r'C:\Users\eklundmd\OneDrive - PPD\Desktop\Python Projects\backtest')
             except:
-                log_message(f"all gucci")    
+                pass
 
             # Save df to excel
             df.to_excel(f"{ticker}_backtest_df.xlsx", index=True)
@@ -919,115 +898,137 @@ except FileNotFoundError:
 
 if one_sim:
 
-    # Plot closing price and volume
-    fig = plt.figure(figsize=(12, 6))
-    ax1 = plt.subplot(3, 2, 1) # rows=2, cols=1, index=1
-    ax1.plot(df['Close'], label='Closing Price', color='blue')
-    ax1.set_ylabel('Price')
-    ax1.grid()
-    ax2 = ax1.twinx()  # Create a second y-axis for volume
-    ax2.bar(df.index, df['Volume'], label='Volume', color='orange', align='center', width=0.5)
-    ax2.set_ylabel('Volume')
-    plt.title(f'{ticker} Closing Price + Volume ({interval})')
-    plt.xlabel('Date')
-    plt.legend()
-    # plt.grid()
-
-    # Plot ATR and Relative Volume
-    ax3 = plt.subplot(3, 2, 3)
-    ax3.plot(df['ATR'], label='20-day ATR (Volatility)', color='purple', alpha=0.5)
-    ax3.set_ylabel('ATR')
-    ax3.grid()
-    ax3_2 = ax3.twinx()  # Create a second y-axis for relative volume
-    ax3_2.set_ylabel('Relative Volume')
-    ax3_2.plot(df['Relative_Volume'], label='Rel. Volume', color='green', alpha=0.5)
-    plt.title(f'ATR + Relative Volume ({interval})')
-    plt.xlabel('Date')
-    plt.legend()
-    # plt.grid()
-
-    # Plot port_value vs bnh from backtest
-    ax7 = plt.subplot(3, 2, 5)
-    ax7.plot(df['port_value'], label='Portfolio Value', color='blue')
-    ax7.plot(df['bnh'], color='orange')
-    # Plot arrows for buy/sell signals
-    plt.scatter(df.index[df['trade'] == 1], df['port_value'][df['trade'] == 1], marker='^', color='green',  s=50)
-    plt.scatter(df.index[df['trade'] == -1], df['port_value'][df['trade'] == -1], marker='v', color='red', s=50)
-    ax7.sharex(ax1) # share x axis with ax1
-    ax7.set_ylabel('Value')
-    ax7.set_xlabel('Date')
-    plt.title(f'Portfolio Value vs Buy and Hold ({interval})')
-    plt.legend(loc='lower left')
-    plt.grid()
-
-    if 1 == 0:
-        # Plot Price and Relative Volume
-        ax3 = plt.subplot(3, 2, 2)
-        ax3.plot(df['Close'], label='Closing Price', color='blue')
-        ax3.set_ylabel('Price')
-        ax3_2 = ax3.twinx()  # Create a second y-axis for relative volume
-        ax3_2.plot(df.index, df['Relative_Volume'], label='Relative Volume', color='orange')
-        ax3_2.set_ylabel('Relative Volume')
+    if one_chart:
+        plt.figure(figsize=(12, 6))
+        # Plot port_value vs bnh from backtest
+        # ax7 = plt.subplot(3, 2, 5)
+        plt.plot(df['port_value'], label='Portfolio Value', color='blue')
+        plt.plot(df['bnh'], color='orange')
+        # if levered_ticker != 'Nah': # Need to update backtest first
+        #     ax7.plot(df[levered_ticker], label=f'{levered_ticker} Value', color='green')
+        # Plot arrows for buy/sell signals
+        plt.scatter(df.index[df['trade'] == 1], df['port_value'][df['trade'] == 1], marker='^', color='green',  s=50)
+        plt.scatter(df.index[df['trade'] == -1], df['port_value'][df['trade'] == -1], marker='v', color='red', s=50)
+        plt.ylabel('Value')
         plt.xlabel('Date')
-        plt.title(f'Closing Price + Relative Volume ({interval})')
+        plt.title(f'Portfolio Value vs Buy and Hold ({interval})')
+        plt.legend(loc='lower left')
+        plt.grid()
+        plt.show()
+        
+    # 6 subplots
+    else:
+        # Plot closing price and volume
+        fig = plt.figure(figsize=(12, 6))
+        ax1 = plt.subplot(3, 2, 1) # rows=2, cols=1, index=1
+        ax1.plot(df['Close'], label='Closing Price', color='blue')
+        ax1.set_ylabel('Price')
+        ax1.grid()
+        ax2 = ax1.twinx()  # Create a second y-axis for volume
+        ax2.bar(df.index, df['Volume'], label='Volume', color='orange', align='center', width=0.5)
+        ax2.set_ylabel('Volume')
+        plt.title(f'{ticker} Closing Price + Volume ({interval})')
+        plt.xlabel('Date')
         plt.legend()
+        # plt.grid()
+
+        # Plot ATR and Relative Volume
+        ax3 = plt.subplot(3, 2, 3)
+        ax3.plot(df['ATR'], label='20-day ATR (Volatility)', color='purple', alpha=0.5)
+        ax3.set_ylabel('ATR')
+        ax3.grid()
+        ax3_2 = ax3.twinx()  # Create a second y-axis for relative volume
+        ax3_2.set_ylabel('Relative Volume')
+        ax3_2.plot(df['Relative_Volume'], label='Rel. Volume', color='green', alpha=0.5)
+        plt.title(f'ATR + Relative Volume ({interval})')
+        plt.xlabel('Date')
+        plt.legend()
+        # plt.grid()
+
+        # Plot port_value vs bnh from backtest
+        ax7 = plt.subplot(3, 2, 5)
+        ax7.plot(df['port_value'], label='Portfolio Value', color='blue')
+        ax7.plot(df['bnh'], color='orange')
+        # if levered_ticker != 'Nah': # Need to update backtest first
+        #     ax7.plot(df[levered_ticker], label=f'{levered_ticker} Value', color='green')
+        # Plot arrows for buy/sell signals
+        plt.scatter(df.index[df['trade'] == 1], df['port_value'][df['trade'] == 1], marker='^', color='green',  s=50)
+        plt.scatter(df.index[df['trade'] == -1], df['port_value'][df['trade'] == -1], marker='v', color='red', s=50)
+        ax7.sharex(ax1) # share x axis with ax1
+        ax7.set_ylabel('Value')
+        ax7.set_xlabel('Date')
+        plt.title(f'Portfolio Value vs Buy and Hold ({interval})')
+        plt.legend(loc='lower left')
         plt.grid()
 
-        # Plot Price and ATR
+        if 1 == 0:
+            # Plot Price and Relative Volume
+            ax3 = plt.subplot(3, 2, 2)
+            ax3.plot(df['Close'], label='Closing Price', color='blue')
+            ax3.set_ylabel('Price')
+            ax3_2 = ax3.twinx()  # Create a second y-axis for relative volume
+            ax3_2.plot(df.index, df['Relative_Volume'], label='Relative Volume', color='orange')
+            ax3_2.set_ylabel('Relative Volume')
+            plt.xlabel('Date')
+            plt.title(f'Closing Price + Relative Volume ({interval})')
+            plt.legend()
+            plt.grid()
+
+            # Plot Price and ATR
+            ax6 = plt.subplot(3, 2, 6)
+            ax6.plot(df['Close'], label='Closing Price', color='blue')
+            ax6.set_ylabel('Price')
+            ax6_2 = ax6.twinx()  # Create a second y-axis for ATR
+            ax6_2.plot(df.index, df['ATR'], label='20-day ATR', color='purple')
+            ax6_2.set_ylabel('ATR')
+            plt.xlabel('Date')
+            plt.title(f'Closing Price + ATR ({interval})')
+            plt.legend()
+            plt.grid()
+
+        # Plot CRSI
+        ax4 = plt.subplot(3, 2, 4)
+        ax4.plot(df['crsi'], label='CRSI (3,2,100)')
+        ax4.sharex(ax1) # share x axis with ax1
+        plt.axhline(10, linestyle='--', color='black', label='Oversold (Buy)', alpha=0.5)
+        plt.axhline(90, linestyle='--', color='black', label='Overbought (Sell)', alpha=0.5)
+        # Plot arrows for buy/sell signals
+        plt.scatter(df.index[df['crsi'] < crsi_buy_level], df['crsi'][df['crsi'] < crsi_buy_level], marker='^', color='green', label='Buy Signal', s=50)
+        plt.scatter(df.index[df['crsi'] > crsi_sell_level], df['crsi'][df['crsi'] > crsi_sell_level], marker='v', color='red', label='Sell Signal', s=50)
+        plt.title(f'CRSI')
+        plt.xlabel('Date')
+        plt.ylabel('CRSI')
+        # plt.legend()
+        plt.grid()
+
+        # Plot Bollinger Bands
+        ax5 = plt.subplot(3, 2, 2)
+        ax5.plot(df['Close'], label='Closing Price', color='blue')
+        ax5.plot(df['sma_20'], label='20-day SMA', color='orange')
+        plt.plot(df['lower_band'], label=f'Lower Band (-2 Sigma)', color='black', alpha=0.5)
+        plt.plot(df['upper_band'], label=f'Upper Band (+2 Sigma)', color='black', alpha=0.5)
+        # Plot arrows for buy/sell signals
+        plt.scatter(df.index[df['Close'] < df['lower_band']], df['lower_band'][df['Close'] < df['lower_band']], marker='^', color='green', label='Buy Signal', s=50)
+        plt.scatter(df.index[df['Close'] > df['upper_band']], df['upper_band'][df['Close'] > df['upper_band']], marker='v', color='red', label='Sell Signal', s=50)
+        plt.title(f'Bollinger Bands')
+        plt.xlabel('Date')
+        plt.ylabel('Price')
+        # plt.legend()
+        plt.grid()
+
+        # Plot Moving Average Stretch
         ax6 = plt.subplot(3, 2, 6)
         ax6.plot(df['Close'], label='Closing Price', color='blue')
-        ax6.set_ylabel('Price')
-        ax6_2 = ax6.twinx()  # Create a second y-axis for ATR
-        ax6_2.plot(df.index, df['ATR'], label='20-day ATR', color='purple')
-        ax6_2.set_ylabel('ATR')
+        ax6.plot(df['ema_20'], label='20-day EMA', color='orange')
+        ax6.plot(df['ma_buy_level'], label='Buy Level (1-SD Below EMA)', color='green', linestyle='--')
+        ax6.plot(df['ma_sell_level'], label='Sell Level (1-SD Above EMA)', color='red', linestyle='--')
+        # Plot arrows for buy/sell signals
+
+        plt.title(f'Moving Average Stretch')
         plt.xlabel('Date')
-        plt.title(f'Closing Price + ATR ({interval})')
-        plt.legend()
+        plt.ylabel('Price')
+        # plt.legend()
         plt.grid()
 
-    # Plot CRSI
-    ax4 = plt.subplot(3, 2, 4)
-    ax4.plot(df['crsi'], label='CRSI (3,2,100)')
-    ax4.sharex(ax1) # share x axis with ax1
-    plt.axhline(10, linestyle='--', color='black', label='Oversold (Buy)', alpha=0.5)
-    plt.axhline(90, linestyle='--', color='black', label='Overbought (Sell)', alpha=0.5)
-    # Plot arrows for buy/sell signals
-    plt.scatter(df.index[df['crsi'] < crsi_buy_level], df['crsi'][df['crsi'] < crsi_buy_level], marker='^', color='green', label='Buy Signal', s=50)
-    plt.scatter(df.index[df['crsi'] > crsi_sell_level], df['crsi'][df['crsi'] > crsi_sell_level], marker='v', color='red', label='Sell Signal', s=50)
-    plt.title(f'CRSI')
-    plt.xlabel('Date')
-    plt.ylabel('CRSI')
-    # plt.legend()
-    plt.grid()
-
-    # Plot Bollinger Bands
-    ax5 = plt.subplot(3, 2, 2)
-    ax5.plot(df['Close'], label='Closing Price', color='blue')
-    ax5.plot(df['sma_20'], label='20-day SMA', color='orange')
-    plt.plot(df['lower_band'], label=f'Lower Band (-2 Sigma)', color='black', alpha=0.5)
-    plt.plot(df['upper_band'], label=f'Upper Band (+2 Sigma)', color='black', alpha=0.5)
-    # Plot arrows for buy/sell signals
-    plt.scatter(df.index[df['Close'] < df['lower_band']], df['lower_band'][df['Close'] < df['lower_band']], marker='^', color='green', label='Buy Signal', s=50)
-    plt.scatter(df.index[df['Close'] > df['upper_band']], df['upper_band'][df['Close'] > df['upper_band']], marker='v', color='red', label='Sell Signal', s=50)
-    plt.title(f'Bollinger Bands')
-    plt.xlabel('Date')
-    plt.ylabel('Price')
-    # plt.legend()
-    plt.grid()
-
-    # Plot Moving Average Stretch
-    ax6 = plt.subplot(3, 2, 6)
-    ax6.plot(df['Close'], label='Closing Price', color='blue')
-    ax6.plot(df['ema_20'], label='20-day EMA', color='orange')
-    ax6.plot(df['ma_buy_level'], label='Buy Level (1-SD Below EMA)', color='green', linestyle='--')
-    ax6.plot(df['ma_sell_level'], label='Sell Level (1-SD Above EMA)', color='red', linestyle='--')
-    # Plot arrows for buy/sell signals
-
-    plt.title(f'Moving Average Stretch')
-    plt.xlabel('Date')
-    plt.ylabel('Price')
-    # plt.legend()
-    plt.grid()
-
-    plt.tight_layout()  # Adjust layout to prevent overlap
-    plt.show()
+        plt.tight_layout()  # Adjust layout to prevent overlap
+        plt.show()
