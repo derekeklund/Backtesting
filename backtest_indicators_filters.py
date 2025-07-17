@@ -122,7 +122,7 @@ def connors_rsi(df, rsi_period, streak_period, percent_rank_period):
 
     # 3. Percent rank of 1-period return
     df['1_day_return'] = df['Close'].pct_change()
-    if ticker == 'NVDA' or ticker == 'GOOGL':
+    if levered_ticker != 'Nah':
         df[f'{levered_ticker}_1_day_return'] = df[levered_ticker].pct_change() # NVDL 1-day return
     df['percent_rank'] = df['1_day_return'].rolling(window=percent_rank_period).apply(
         lambda x: pd.Series(x).rank(pct=True).iloc[-1] * 100, raw=False)
@@ -257,8 +257,9 @@ log_message(f"Current Directory: {current_dir}")
 # # API credentials
 
 # Input params
-ticker = "SPY" # AMZN
+ticker = "NVDA" # AMZN
 interval = "1d" # Bars! 1m, 2m, 5m, 15m, 30m, 60m, 90m, 1h, 1d, 5d, 1wk
+day_lag = False
 days_ago = 365 # How many days back to get data from
 lookback_length = 150 # Number of days (25 * 7 = 175 bars for 1h interval)
 # Get lookback + midway
@@ -306,7 +307,7 @@ switches = ['bollinger', 'ma_stretch', 'crsi', 'regime', 'volvol', 'kalman']
 
 # Beliefs
 low_belief = 1 # 0.8 = 80% belief (20% cash)
-high_belief = 2 # 1.25 pretty good (1.5 --> 94% drawdown)
+high_belief = 1.5 # 1.25 pretty good (1.5 --> 94% drawdown)
 
 from itertools import product
 # from tqdm import tqdm
@@ -346,9 +347,9 @@ for p in product([False, True], repeat=len(switches)):
     else:
         kalman_filter = False
 
-# if 1 == 1:
-    one_sim = False # Set to True to run one simulation (and disable 1 == 1)
-    # starts = ['2023-01-01'] # Set to one start date for one simulation
+if 1 == 1:
+    one_sim = True # Set to True to run one simulation (and disable 1 == 1)
+    starts = ['2023-01-01'] # Set to one start date for one simulation
     len_starts = len(starts) # Length of starts list
     if one_sim == True:
         len_combos = 1
@@ -374,9 +375,9 @@ for p in product([False, True], repeat=len(switches)):
             ma_stretch = False # Use Moving Average Stretch
             crsi = False # Use Connors RSI
             # Filter switches
-            regime_filter = False # Bull/Bear/Flat Regime Filter
-            volvol_filter = False # Volatility/Volume Filter
-            kalman_filter = True # Kalman Filter
+            regime_filter = True # Bull/Bear/Flat Regime Filter
+            volvol_filter = True # Volatility/Volume Filter
+            kalman_filter = False # Kalman Filter
 
         # CRSI parameters
         crsi_buy_level = 10 # Buy if CRSI is under this
@@ -410,9 +411,19 @@ for p in product([False, True], repeat=len(switches)):
             levered_ticker = 'GGLL'
         elif ticker == 'SPY':
             levered_ticker = 'SSO'
+        elif ticker == 'QQQ':
+            levered_ticker = 'QLD'
+        elif ticker == 'SMH':
+            levered_ticker = 'USD'
+        elif ticker == 'TSLA':
+            levered_ticker = 'TSLL'
+        elif ticker == 'GLD':
+            levered_ticker = 'UGL'
+        else:
+            levered_ticker = 'Nah'
 
 
-        if ticker == 'NVDA' or ticker == 'GOOGL':
+        if levered_ticker != 'Nah':
             # Add column for NVDL
             stock = yf.Ticker(levered_ticker)
             levered_history = stock.history(start=start, end=end, interval=interval)
@@ -656,7 +667,7 @@ for p in product([False, True], repeat=len(switches)):
             if i == 0:
                 df.loc[i, 'share_value'] = low_belief * starting_cap # 0.8 belief
                 df.loc[i, 'cash'] =  starting_cap - df.loc[i, 'share_value'] # 0.2 cash
-                if ticker == 'NVDA' or ticker == 'GOOGL':
+                if levered_ticker != 'Nah':
                     df.loc[i, 'total_shares'] = df['share_value'].iloc[i] / df[levered_ticker].iloc[i] # Shares owned
                 else:
                     df.loc[i, 'total_shares'] = df['share_value'].iloc[i] / df['Close'].iloc[i] # Shares owned
@@ -681,7 +692,7 @@ for p in product([False, True], repeat=len(switches)):
 
                 # START TESTING
 
-                if ticker == 'NVDA' or ticker == 'GOOGL':
+                if levered_ticker != 'Nah':
                     df.loc[i, 'share_value'] = df['total_shares'].iloc[i] * df[levered_ticker].iloc[i]
                 else:
                     # Calculate share value for non-NVDL tickers
@@ -697,13 +708,19 @@ for p in product([False, True], repeat=len(switches)):
                 # Update amount to buy/sell
                 # trading_capital = (high_belief - low_belief) * df['port_value'].iloc[i-1] # 40% of portfolio value
 
-                if df.loc[i, 'decision'] == 'Buy' and df.loc[i, 'position'] == 'short': # Buy if in short position
+                if day_lag == True:
+                    index = i - 1
+                else:
+                    index = i
+
+
+                if df.loc[index, 'decision'] == 'Buy' and df.loc[index, 'position'] == 'short': # Buy if in short position
 
                     # For buy
                     trading_capital = (high_belief - low_belief) * df['port_value'].iloc[i]
 
                     # Calculate the number of shares to buy
-                    if ticker == 'NVDA' or ticker == 'GOOGL':
+                    if levered_ticker != 'Nah':
                         df.loc[i, 'change_in_shares'] = trading_capital / df[levered_ticker].iloc[i]
                     else:
                         # Calculate shares for non-NVDL tickers
@@ -713,7 +730,7 @@ for p in product([False, True], repeat=len(switches)):
                     df.loc[i, 'total_shares'] = df['total_shares'].iloc[i-1] + df['change_in_shares'].iloc[i]
 
                     # Update the cash pile
-                    if ticker == 'NVDA' or ticker == 'GOOGL':
+                    if levered_ticker != 'Nah':
                         df.loc[i, 'cash'] = df['cash'].iloc[i-1] - (df['change_in_shares'].iloc[i] * df[levered_ticker].iloc[i])
                     else:
                         df.loc[i, 'cash'] = df['cash'].iloc[i-1] - (df['change_in_shares'].iloc[i] * df['Close'].iloc[i])
@@ -732,7 +749,7 @@ for p in product([False, True], repeat=len(switches)):
                     trading_capital = -1 * df['cash'].iloc[i]
 
                     # Calculate the number of shares to sell
-                    if ticker == 'NVDA' or ticker == 'GOOGL':
+                    if levered_ticker != 'Nah':
                         df.loc[i, 'change_in_shares'] = trading_capital / df[levered_ticker].iloc[i]
                     else:
                         df.loc[i, 'change_in_shares'] = trading_capital / df['Close'].iloc[i]
@@ -741,7 +758,7 @@ for p in product([False, True], repeat=len(switches)):
                     df.loc[i, 'total_shares'] = df['total_shares'].iloc[i-1] - df['change_in_shares'].iloc[i]
 
                     # Update the cash pile
-                    if ticker == 'NVDA' or ticker == 'GOOGL':
+                    if levered_ticker != 'Nah':
                         df.loc[i, 'cash'] = df['cash'].iloc[i-1] + (df['change_in_shares'].iloc[i] * df[levered_ticker].iloc[i])
                     else:
                         # Update cash for non-NVDL tickers
@@ -759,14 +776,14 @@ for p in product([False, True], repeat=len(switches)):
                 df.loc[i, 'bnh'] = df['bnh'].iloc[i-1]
 
                 # Update the bnh value
-                if ticker == 'NVDA' or ticker == 'GOOGL':
+                if levered_ticker != 'Nah':
                     # If NVDL, use NVDL price
                     df.loc[i, 'bnh'] = df.loc[i, 'bnh'] * (1 + df[f'{levered_ticker}_1_day_return'].iloc[i])
                 else:
                     df.loc[i, 'bnh'] = df.loc[i, 'bnh'] * (1 + df['1_day_return'].iloc[i])
 
             # Calculate the shares + portfolio value
-            if ticker == 'NVDA' or ticker == 'GOOGL':
+            if levered_ticker != 'Nah':
                 df.loc[i, 'share_value'] = df['total_shares'].iloc[i] * df[levered_ticker].iloc[i]
             else:
                 # Calculate share value for non-NVDL tickers
