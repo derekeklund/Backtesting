@@ -44,6 +44,7 @@ print(f"Start: {start} | End: {end}")
 
 # Input params
 # tickers = ['NVDA', 'GOOGL', 'MSFT'] # above
+# tickers = tickers[:10]  # for testing
 # tickers = ['NVDA']
 # start = '2024-01-01' # above
 # end = '2024-12-31' # above
@@ -171,19 +172,47 @@ for ticker in tqdm(tickers):
         errors[ticker] = e
 
 
-print(df_deciles)
+# Rate/rank each factor
+df_deciles['mc_rank'] = df_deciles['MarketCap'].rank(method='average')
+df_deciles['ret_rank'] = df_deciles['Returns1year'].rank(method='average')
+df_deciles['eps_rank'] = df_deciles['EpsGrowth'].rank(method='average')
+df_deciles['rev_rank'] = df_deciles['RevenueGrowth'].rank(method='average')
+df_deciles['prof_rank'] = df_deciles['ProfitGrowth'].rank(method='average')
 
-print(errors)
+# Composite score
+df_deciles['Composite'] = df_deciles[['mc_rank', 'ret_rank', 'eps_rank', 'rev_rank', 'prof_rank']].sum(axis=1)
 
-# Save to excel:
-# Save dfs to excel
+# Top and bottom deciles
+factor = 'mc_rank'
+n_decile = 10 # 10 percent
+n_decile = round(len(tickers) / 10)
+print(f"# stocks: {len(tickers)} | # top decile: {n_decile}")
+
+# Sort by factor
+df_deciles = df_deciles.sort_values(by=factor, ascending=False)
+# Get top decile
+top_decile = df_deciles.iloc[:10, df_deciles.columns.get_loc('Ticker')].tolist()
+
+print(f"{df_deciles}\n")
+print(top_decile)
+
+print(f"Errors: ", errors)
+
+# Switch to best directory
 try:
     os.chdir(r'C:\Users\eklundmd\OneDrive - Thermo Fisher Scientific\Desktop\Python Projects\Learning\backtest')
-    with pd.ExcelWriter('df_deciles.xlsx') as writer:  
-        df_deciles.to_excel(writer, sheet_name='deciles')
 except:
-    with pd.ExcelWriter('df_deciles.xlsx') as writer:  
-        df_deciles.to_excel(writer, sheet_name='deciles')
+    os.chdir(r'C:\Users\derek\Coding Projects\Cream\statistics')
+
+# Save df to excel
+dir = os.getcwd()
+file_name = 'df_deciles.xlsx'
+
+with pd.ExcelWriter(file_name) as writer:  
+    df_deciles.to_excel(writer, sheet_name='deciles')
+
+print(fr"Dataframe saved here --> {dir}\{file_name}")
+
 
 # Plot
 if 1 == 0:
