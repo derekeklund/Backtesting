@@ -22,6 +22,54 @@ decile_combos.py
 - select from nasdaq100 + s&p500 list
 '''
 
+def get_returns(stock_list, start, end):
+    """ Performs a backtest on stocks in given date range with yfinance
+
+    Keyword arguments:
+    stock_list - list of tickers
+    start - datetime start backtest
+    end: datetime end backtest
+
+    return - DataFrame of returns
+    """
+
+    print(f"stock_list: {type(stock_list)}")
+    print(f"start: {type(start)} | end: {type(end)}")
+
+
+    # Initialize df with stocks as columns
+    df = pd.DataFrame(columns=stock_list)
+
+    for ticker in stock_list:
+
+        # Fetch data
+        df[ticker] = yf.download(ticker, start=start, end=end, auto_adjust=True)['Close']
+
+        # Initial value for holding stock
+        df[f'{ticker}_val'] = 10000.0
+        
+        # Calculate 1 day returns
+        df[f'{ticker}_ret'] = df[ticker].pct_change()
+
+    # Fill NaN values with 0.0 for returns
+    df.fillna(0.0, inplace=True)
+
+    # Make date a column and index an int
+    df['date'] = df.index
+    df.reset_index(drop=True, inplace=True)
+
+    # Avoid modifying the original DataFrame
+    df = df.copy()
+
+    # Get values of holdings
+    for i in range(1, len(df)):
+
+        for ticker in stock_list:
+
+            df.loc[i, f'{ticker}_val'] = df[f'{ticker}_val'].iloc[i-1] * (1 + df[f'{ticker}_ret'].iloc[i])
+
+    return df
+
 # Get tickers list
 file_name = 'nasdaq100_tickers.txt'
 
@@ -48,7 +96,7 @@ print(f"Start: {start} | End: {end}")
 # tickers = ['NVDA']
 # start = '2024-01-01' # above
 # end = '2024-12-31' # above
-factor = 'market_cap'  # 'returns', 'eps_growth', 'revenue_growth', 'profit_growth'
+# factor = 'returns'  # 'market_cap', 'returns', 'eps_growth', 'revenue_growth', 'profit_growth'
 
 # Download history
 df = yf.download(tickers=tickers, start=start, end=end, auto_adjust=True, group_by='ticker')
@@ -130,11 +178,11 @@ for ticker in tqdm(tickers):
 
         # Get index dates for price history download
         dates = df_income_stmts.index.tolist()
-        start = dates[-1]
-        end = dates[0] + timedelta(days=1)
+        start_historical = dates[-1]
+        end_historical = dates[0] + timedelta(days=1)
 
         # Download prices
-        df_prices = yf.download(ticker, start=start, end=end, auto_adjust=True, progress=False)
+        df_prices = yf.download(ticker, start=start_historical, end=end_historical, auto_adjust=True, progress=False)
 
         # Reduce to just closes
         df_prices = df_prices[[col for col in df_prices.columns if col[0] == 'Close']]
@@ -183,7 +231,7 @@ df_deciles['prof_rank'] = df_deciles['ProfitGrowth'].rank(method='average')
 df_deciles['Composite'] = df_deciles[['mc_rank', 'ret_rank', 'eps_rank', 'rev_rank', 'prof_rank']].sum(axis=1)
 
 # Top and bottom deciles
-factor = 'mc_rank'
+factor = 'ret_rank' # Input param - mc_rank, ret_rank, eps_rank, rev_rank, prof_rank, Composite
 n_decile = 10 # 10 percent
 n_decile = round(len(tickers) / 10)
 print(f"# stocks: {len(tickers)} | # top decile: {n_decile}")
@@ -191,12 +239,44 @@ print(f"# stocks: {len(tickers)} | # top decile: {n_decile}")
 # Sort by factor
 df_deciles = df_deciles.sort_values(by=factor, ascending=False)
 # Get top decile
-top_decile = df_deciles.iloc[:10, df_deciles.columns.get_loc('Ticker')].tolist()
+list_top_decile = df_deciles.iloc[:10, df_deciles.columns.get_loc('Ticker')].tolist()
 
 print(f"{df_deciles}\n")
-print(top_decile)
-
+print(f"Top stocks for {factor} -- {list_top_decile}")
 print(f"Errors: ", errors)
+
+# Backtest
+dt_start = end + timedelta(days=1)
+dt_end = dt_start + timedelta(days=30) # 1 month
+df_backtest = get_returns(stock_list=list_top_decile, start=dt_start, end=dt_end)
+
+print(f"Backtest long:\n{df_backtest}")
+
+# Calculate returns for each + total
+columns = df_backtest.columns.tolist()
+columns = [c for c in columns if '_val' in c]
+df_backtest = df_backtest[columns] # Reduce to stock value columns
+start_port_val = 0
+end_port_val = 0
+
+# Sum start and end backtest values
+for col in columns:
+    start_port_val += df_backtest[col].iloc[0]
+    end_port_val += df_backtest[col].iloc[-1]
+
+port_return = (end_port_val - start_port_val) / start_port_val * 100
+port_return = round(port_return, 2)
+
+# Get SPY to compare strategy returns
+spy_backtest = get_returns(stock_list=['SPY'], start=dt_start, end=dt_end)
+print(spy_backtest)
+
+start_spy_val = spy_backtest['SPY_val'].iloc[0]
+end_spy_val = spy_backtest['SPY_val'].iloc[-1]
+spy_return = (end_spy_val - start_spy_val) / start_spy_val * 100
+spy_return = round(spy_return, 2)
+
+print(f"Portfolio value: ${end_port_val:,.2f} ({port_return}%) | SPY value: {end_spy_val} ({spy_return}%)")
 
 # Switch to best directory
 try:
@@ -210,6 +290,7 @@ file_name = 'df_deciles.xlsx'
 
 with pd.ExcelWriter(file_name) as writer:  
     df_deciles.to_excel(writer, sheet_name='deciles')
+    df_backtest.to_excel(writer, sheet_name='long_backtest')
 
 print(fr"Dataframe saved here --> {dir}\{file_name}")
 
