@@ -1,0 +1,338 @@
+import yfinance as yf
+import pandas as pd
+import matplotlib.pyplot as plt
+from datetime import datetime, timedelta
+from tqdm import tqdm
+import time
+import os
+
+pd.set_option('display.max_rows', None)
+pd.set_option('display.max_columns', None)
+
+'''
+Earnings Growth Deciles (with Regime filter):
+1. download 1 year data (all at once)
+2. apply regime filter on price history
+3. buy top decile, short bottom decile
+
+decile_combos.py
+- choose from following factors: market_cap, returns, eps_growth, revenue_growth, profit_growth (5 to start)
+- add filters (regime + volvol + kalman, share dilution)
+- generic build to modify to alpaca bot
+- select from nasdaq100 + s&p500 list
+'''
+
+def get_returns(stock_list, start, end):
+    """ Performs a backtest on stocks in given date range with yfinance
+
+    Keyword arguments:
+    stock_list - list of tickers
+    start - datetime start backtest
+    end: datetime end backtest
+
+    return - DataFrame of returns
+    """
+
+    print(f"stock_list: {type(stock_list)}")
+    print(f"start: {type(start)} | end: {type(end)}")
+
+
+    # Initialize df with stocks as columns
+    df = pd.DataFrame(columns=stock_list)
+
+    for ticker in stock_list:
+
+        # Fetch data
+        df[ticker] = yf.download(ticker, start=start, end=end, auto_adjust=True)['Close']
+
+        # Initial value for holding stock
+        df[f'{ticker}_val'] = 10000.0
+        
+        # Calculate 1 day returns
+        df[f'{ticker}_ret'] = df[ticker].pct_change()
+
+    # Fill NaN values with 0.0 for returns
+    df.fillna(0.0, inplace=True)
+
+    # Make date a column and index an int
+    df['date'] = df.index
+    df.reset_index(drop=True, inplace=True)
+
+    # Avoid modifying the original DataFrame
+    df = df.copy()
+
+    # Get values of holdings
+    for i in range(1, len(df)):
+
+        for ticker in stock_list:
+
+            df.loc[i, f'{ticker}_val'] = df[f'{ticker}_val'].iloc[i-1] * (1 + df[f'{ticker}_ret'].iloc[i])
+
+    return df
+
+# Get tickers list
+file_name = 'nasdaq100_tickers.txt'
+
+try:
+    tickers_path = fr"C:\Users\derek\Coding Projects\tickers\{file_name}"
+    with open(tickers_path, 'r') as f:
+        tickers = f.read().splitlines()
+except:
+    tickers_path = fr"C:\Users\eklundmd\OneDrive - Thermo Fisher Scientific\Desktop\Python Projects\Learning\backtest\{file_name}"
+    with open(tickers_path, 'r') as f:
+        tickers = f.read().splitlines()
+
+print(f"Tickers ({len(tickers)}):\n{tickers}\n")
+
+# Timeframes for training data
+end = datetime.today() #.date()
+end = end - timedelta(days=365 * 1)  # 1 year
+start = end - timedelta(days=365 * 1)
+print(f"Start: {start} | End: {end}")
+
+# Input params
+# tickers = ['NVDA', 'GOOGL', 'MSFT'] # above
+# tickers = tickers[:10]  # for testing
+# tickers = ['NVDA']
+tickers = ['ASML', 'AMD']
+# start = '2024-01-01' # above
+# end = '2024-12-31' # above
+# factor = 'returns'  # 'market_cap', 'returns', 'eps_growth', 'revenue_growth', 'profit_growth'
+
+# Download history
+df = yf.download(tickers=tickers, start=start, end=end, auto_adjust=True, group_by='ticker')
+
+# Only select closing prices from inner level
+df = df[[col for col in df.columns if col[1] == 'Close']]
+
+# Rename columns to tickers
+df.columns = [col[0] for col in df.columns]
+
+# Empty df
+columns = ['Ticker', 'Date', 'MarketCap', 'Returns1year', 'EpsGrowth', 'RevenueGrowth', 'ProfitGrowth']
+df_deciles = pd.DataFrame(columns=columns)
+
+errors = {}
+
+for ticker in tqdm(tickers):
+
+    # Stock object
+    stock = yf.Ticker(ticker)
+
+    # For paper trading
+    if 1 == 0:
+        '''
+        stock.info gives *current* info and can't be used for backtests
+        but can be used to get trailing info for live bots
+
+        Info from this dictionary:
+        - country - filter out non US companies
+        - industry - filter for/out cerain industries (semis, etc)
+        - sector - filter for/out certain sectors (tech, etc)
+        - longBusinessSummary - this could be good for the language processing ML scripts for later. Parse out what kind of business they do. Train a model to understand "scam/hype" companies ()
+        - beta - the stock's price volatility relative to overall market (S&P500 = 1.0). Higher beta means higher swings up/down, not necessarily returns (therefore a better indicator of short-term risk than long-term)
+        - trailingPE, forwardPE
+        - averageVolume, averageVolume10days, averageDailyVolume10Day
+        - marketCap
+        - profitMargins
+        - sharesOutstanding + sharesShort (get %)
+        - priceToBook
+        - trailingEps, forwardEps
+        - 52WeekChange (1 year returns?)
+        - totalRevenue
+        - debtToEquity
+        - revenuePerShare
+        - returnOnEquity
+        - grossProfits
+        - freeCashFlow, operatingCashFlow
+        - earningsGrowth
+        - revenueGrowth
+        - grossMargins
+        - epsTrailingTwelveMonths, epsForward, epsCurrentYear
+        - averageAnalystRating
+        - trailingPegRatio
+        '''
+        for k,v in stock.info.items():
+            print(k,v)
+
+    # print(stock.history()) # HLOC, volume
+    # print(stock.get_history_metadata()) # not helpful
+    # print(stock.actions)  # dividend/split history df
+    # print(stock.fast_info) # not helpful
+    # print(stock.news) # helpful for language processing
+    # print(stock.get_sec_filings()) # maybe parse these
+    # balance_sheet = stock.balance_sheet.transpose()
+    # print(balance_sheet.columns.to_list())
+    # print(stock.financials)
+
+    '''
+    Helpful historical income statement columns:
+    - 
+    - 'DilutedAverageShares' [multiply by price at that date to get marketCap]
+    - 'DilutedEPS', 'BasicEPS'
+    - 'GrossProfit', 'NetIncome', ' NormalizedIncome', 'Net Income Continuous Operations', 'Operating Income'
+    - 'TotalRevenue', 'Operating Revenue', 'Cost Of Revenue'
+    '''
+    try:
+        # Get income statement (last couple years)
+        df_income_stmts = stock.get_income_stmt(freq='yearly').transpose()
+
+        print(df_income_stmts)
+
+        # Remove rows beyond backtest end date
+        df_income_stmts['datetime'] = pd.to_datetime(df_income_stmts.index)
+        df_income_stmts = df_income_stmts[df_income_stmts['datetime'] < end]
+
+        df_income_stmts.reset_index()
+
+        print(f"UPDATED:\n{df_income_stmts}")
+
+        # Get index dates for price history download
+        dates = df_income_stmts.index.tolist()
+        print(f"DATES: {dates}")
+        start_date = dates[1]
+        start_historical = start_date - timedelta(days=3)
+        end_date = dates[0]
+        end_historical = end_date + timedelta(days=3)
+        print(f"Start historical : {start_historical} | end historical: {end_historical}")
+
+        # Download prices
+        df_prices = yf.download(ticker, start=start_historical, end=end_historical, auto_adjust=True, progress=False)
+
+        # Reduce to just closes
+        df_prices = df_prices[[col for col in df_prices.columns if col[0] == 'Close']]
+
+        # Make single index
+        df_prices.columns = [col[0] for col in df_prices.columns]
+
+        iloc_idx = df_prices.index.get_indexer([start_date], method='nearest')
+
+        val = df_prices.iloc[iloc_idx]
+
+        print(f"PRICES: \n{df_prices}")
+
+        print(f"Start: {start} | End: {end}")
+        print(f"closest val: {val}")
+        time.sleep(999)
+
+        # Merge prices and income statement df
+        # df = pd.merge(df_income_stmts, df_prices, left_index=True, right_index=True, how='inner')
+
+        df = pd.concat([df_income_stmts, df_prices], axis=1, join='inner')
+
+        # Add market cap
+        df['MarketCap'] = df['DilutedAverageShares'] * df['Close']
+
+        print(df)
+
+        # Reverse index dates
+        df = df.iloc[::-1]
+
+        # Calculate YoY (growth) values
+        df['Returns1year'] = (df['Close'] - df['Close'].shift(1)) / df['Close'].shift(1)
+        df['EpsGrowth'] = (df['DilutedEPS'] - df['DilutedEPS'].shift(1)) / df['DilutedEPS'].shift(1)
+        df['ProfitGrowth'] = (df['GrossProfit'] - df['GrossProfit'].shift(1)) / df['GrossProfit'].shift(1)
+        df['RevenueGrowth'] = (df['TotalRevenue'] - df['TotalRevenue'].shift(1)) / df['TotalRevenue'].shift(1)
+
+        print(f"df AFTER:\n{df}")
+
+        # Add columns, reset index
+        df['Date'] = df.index
+        df['Ticker'] = ticker
+        df = df.reset_index()
+        
+        # Turn last row into dict
+        latest_info = df.iloc[-1]
+        company_factors = latest_info.to_dict()
+
+        # Add dict values as new df row
+        df_deciles.loc[len(df_deciles)] = company_factors
+    except Exception as e:
+        errors[ticker] = e
+
+
+# Rate/rank each factor
+df_deciles['mc_rank'] = df_deciles['MarketCap'].rank(method='average')
+df_deciles['ret_rank'] = df_deciles['Returns1year'].rank(method='average')
+df_deciles['eps_rank'] = df_deciles['EpsGrowth'].rank(method='average')
+df_deciles['rev_rank'] = df_deciles['RevenueGrowth'].rank(method='average')
+df_deciles['prof_rank'] = df_deciles['ProfitGrowth'].rank(method='average')
+
+# Composite score
+df_deciles['Composite'] = df_deciles[['mc_rank', 'ret_rank', 'eps_rank', 'rev_rank', 'prof_rank']].sum(axis=1)
+
+# Top and bottom deciles
+factor = 'ret_rank' # Input param - mc_rank, ret_rank, eps_rank, rev_rank, prof_rank, Composite
+n_decile = 10 # 10 percent
+n_decile = round(len(tickers) / 10)
+print(f"# stocks: {len(tickers)} | # top decile: {n_decile}")
+
+# Sort by factor
+df_deciles = df_deciles.sort_values(by=factor, ascending=False)
+# Get top decile
+list_top_decile = df_deciles.iloc[:10, df_deciles.columns.get_loc('Ticker')].tolist()
+
+print(f"{df_deciles}\n")
+print(f"Top stocks for {factor} -- {list_top_decile}")
+print(f"Errors: ", errors)
+
+# Backtest
+dt_start = end + timedelta(days=1)
+dt_end = dt_start + timedelta(days=30) # 1 month
+df_backtest = get_returns(stock_list=list_top_decile, start=dt_start, end=dt_end)
+
+print(f"Backtest long:\n{df_backtest}")
+
+# Calculate returns for each + total
+columns = df_backtest.columns.tolist()
+columns = [c for c in columns if '_val' in c]
+df_backtest = df_backtest[columns] # Reduce to stock value columns
+start_port_val = 0
+end_port_val = 0
+
+# Sum start and end backtest values
+for col in columns:
+    start_port_val += df_backtest[col].iloc[0]
+    end_port_val += df_backtest[col].iloc[-1]
+
+port_return = (end_port_val - start_port_val) / start_port_val * 100
+port_return = round(port_return, 2)
+
+# Get SPY to compare strategy returns
+spy_backtest = get_returns(stock_list=['SPY'], start=dt_start, end=dt_end)
+print(spy_backtest)
+
+start_spy_val = spy_backtest['SPY_val'].iloc[0]
+end_spy_val = spy_backtest['SPY_val'].iloc[-1]
+spy_return = (end_spy_val - start_spy_val) / start_spy_val * 100
+spy_return = round(spy_return, 2)
+
+print(f"Portfolio value: ${end_port_val:,.2f} ({port_return}%) | SPY value: {end_spy_val} ({spy_return}%)")
+
+# Switch to best directory
+try:
+    os.chdir(r'C:\Users\eklundmd\OneDrive - Thermo Fisher Scientific\Desktop\Python Projects\Learning\backtest')
+except:
+    os.chdir(r'C:\Users\derek\Coding Projects\Cream\statistics')
+
+# Save df to excel
+dir = os.getcwd()
+file_name = 'df_deciles.xlsx'
+
+with pd.ExcelWriter(file_name) as writer:  
+    df_deciles.to_excel(writer, sheet_name='deciles')
+    df_backtest.to_excel(writer, sheet_name='long_backtest')
+
+print(fr"Dataframe saved here --> {dir}\{file_name}")
+
+
+# Plot
+if 1 == 0:
+    plt.figure(figsize=(10, 6))
+    # plt.plot(df['DilutedEPS'], label='EPS')
+    # plt.plot(df['TotalRevenue'], label="Revenue")
+    # plt.plot(df['NetIncome'], label='Income')
+    plt.plot('MarketCap')
+    plt.legend()
+    plt.grid()
+    # plt.show()
