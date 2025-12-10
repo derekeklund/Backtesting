@@ -10,14 +10,14 @@
 
 ## Features (Planned & Implemented):
 
-✔ Perform stationarity tests (ADF).
+- Perform stationarity tests (ADF).
 
-✔ Identify co-integrated asset pairs.
+- Identify co-integrated asset pairs.
 
-✔ Implement backtesting engine for pair trading and mean-reversion strategies.
+- Implement backtesting engine for pair trading and mean-reversion strategies.
 
-✔ Visualize results with Matplotlib
+- Visualize results with Matplotlib
 
-⬜ Optimize parameters using Sharpe ratio and drawdown metrics.
+- Optimize parameters using Sharpe ratio and drawdown metrics.
 
-⬜ Build Flask-App or GUI to guide users through analyzing potential pairs and backtesting performance
+- Build Flask-App or GUI to guide users through analyzing potential pairs and backtesting performance
